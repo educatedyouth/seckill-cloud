@@ -18,6 +18,16 @@ spring:
         # 注意：
         # - 若有多个 Nacos 节点，推荐使用逗号分隔的多个地址或负载均衡的 VIP 域名，如 "host1:8848,host2:8848"。
         # - 确保网关容器/主机能连通该地址（网络、端口、ACL/防火墙）。
+    # 【新增】Sentinel 配置
+    sentinel:
+        transport:
+          # 控制台地址 (Linux IP + 映射端口)
+          dashboard: 100.113.176.73:8858
+          # 客户端 IP (本机 IP，让控制台能回调回来)
+          # 如果是本地 IDEA 启动，这里填 localhost 或不填自动获取
+          # 如果是服务器部署，这里要填服务器公网/内网 IP
+        # 开启饥渴加载 (Eager Load)，项目一启动就连接控制台，而不是等第一次请求
+        eager: true
     gateway:
       discovery:
         locator:
