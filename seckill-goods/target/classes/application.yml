@@ -1,0 +1,22 @@
+server:
+  port: 8020 # 用户服务占用 8010 端口
+
+spring:
+  application:
+    name: seckill-goods # 【重要】服务名，以后别人找你就靠这个名字
+
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 100.113.176.73:8848 # Nacos 地址 (Linux IP)
+
+  # 数据库配置 (沿用之前的)
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://100.113.176.73:3306/seckill_db?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+    username: root
+    password: root
+
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl # 打印 SQL 日志

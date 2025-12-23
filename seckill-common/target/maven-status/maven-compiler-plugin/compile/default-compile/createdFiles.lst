@@ -1,0 +1,5 @@
+com\example\seckill\common\entity\Order.class
+com\example\seckill\common\entity\User.class
+com\example\seckill\common\result\Result.class
+com\example\seckill\common\dto\SeckillMsgDTO.class
+com\example\seckill\common\entity\Goods.class

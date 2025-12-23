@@ -1,0 +1,3 @@
+com\example\seckill\user\controller\UserController.class
+com\example\seckill\user\UserApplication.class
+com\example\seckill\user\mapper\UserMapper.class
