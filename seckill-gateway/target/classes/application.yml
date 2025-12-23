@@ -1,0 +1,33 @@
+server:
+  port: 8080 # 网关统一对外端口
+
+spring:
+  application:
+    name: seckill-gateway
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 100.113.176.73:8848 # Nacos 地址
+    gateway:
+      discovery:
+        locator:
+          enabled: true # 开启从 Nacos 自动拉取服务列表
+      # 【核心路由配置】
+      routes:
+        # 1. 用户服务路由
+        - id: user-route
+          uri: lb://seckill-user  # lb = LoadBalancer (负载均衡转发)
+          predicates:
+            - Path=/user/** # 只要路径是以 /user 开头，就转给 seckill-user
+
+        # 2. 订单服务路由 (由 seckill-order 负责)
+        - id: order-route
+          uri: lb://seckill-order
+          predicates:
+            - Path=/seckill/**, /order/** # 既然秒杀接口在 /seckill，测试在 /order，都转给它
+
+        # 3. 商品服务路由
+        - id: goods-route
+          uri: lb://seckill-goods
+          predicates:
+            - Path=/goods/**

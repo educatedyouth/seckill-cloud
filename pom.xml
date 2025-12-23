@@ -16,6 +16,7 @@
         <module>seckill-user</module>
         <module>seckill-goods</module>
         <module>seckill-order</module>
+        <module>seckill-gateway</module>
     </modules>
 
     <properties>

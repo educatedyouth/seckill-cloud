@@ -1,0 +1,88 @@
+# application.yml（含详细注释）
+server:
+  # 应用（网关）对外监听端口
+  # 说明：这是 Spring Boot 启动的 HTTP 服务端口，网关统一对外暴露的端口通常在这里配置。
+  port: 8080 # 网关统一对外端口（客户端请求到达此端口，由 Gateway 进行路由转发）
+
+spring:
+  application:
+    # 应用名（用于注册到服务发现的实例名）
+    name: seckill-gateway
+    # 说明：服务注册到 Nacos（或其它注册中心）时使用的实例名称；其他微服务可以通过该 name 定位到该应用（通常用于服务治理/监控）。
+  cloud:
+    nacos:
+      discovery:
+        # Nacos 注册中心的地址（IP:PORT 或 域名:PORT）
+        # 说明：Gateway 在启用注册发现时会向该地址注册自身并从中发现其他服务。
+        server-addr: 100.113.176.73:8848 # Nacos 地址（示例：IP:端口）
+        # 注意：
+        # - 若有多个 Nacos 节点，推荐使用逗号分隔的多个地址或负载均衡的 VIP 域名，如 "host1:8848,host2:8848"。
+        # - 确保网关容器/主机能连通该地址（网络、端口、ACL/防火墙）。
+    gateway:
+      discovery:
+        locator:
+          # 是否启用基于服务发现的动态路由（自动将注册中心中服务生成路由）
+          enabled: true # 开启从 Nacos 自动拉取服务列表
+          # 说明：
+          # - enabled=true 时，Spring Cloud Gateway 会把发现的服务自动注册为路由，路径通常为 /{serviceId}/**（可通过配置修改前缀/匹配规则）。
+          # - 如果同时存在静态 routes（下文 routes 配置），静态路由优先级和动态路由可能出现重叠，需要注意路由冲突和优先级设计。
+      # 【核心静态路由配置】（当需要手动精细控制路由时使用）
+      routes:
+        # 每个元素是一个路由定义，网关根据 Route 的 predicates（断言）匹配请求，
+        # 然后按 uri（目标地址）转发请求（可配合 filters 做请求/响应的变换）。
+        #
+        # 路由字段说明（常见）：
+        # - id: 路由的唯一标识（必须唯一，便于日志/监控/动态调整）
+        # - uri: 转发目标，常用格式：
+        #     - lb://{serviceId}  —— 使用负载均衡（通过注册中心找到具体实例）
+        #     - http://host:port  —— 直连某个地址
+        # - predicates: 一组断言，满足任一断言（或需全部满足，取决于配置）时匹配该路由；常用断言包括 Path、Method、Header 等
+        # - filters: 请求/响应链路上可套用的过滤器（限流、鉴权、重写路径、添加/移除 header 等）
+        #
+        # 注意：YAML 中 predicates、filters 等是一个数组，每个元素为一个字符串形式的断言/过滤器表达。
+
+        # 1. 用户服务路由
+        - id: user-route
+          # 使用服务名进行负载均衡转发（依赖注册中心）
+          uri: lb://seckill-user  # lb = LoadBalancer (负载均衡转发)
+          predicates:
+            - Path=/user/** # 只要路径是以 /user 开头，就转给 seckill-user
+          # 建议：
+          # - 确保 seckill-user 服务已在 Nacos 中注册，serviceId 与此处匹配（大小写敏感或不敏感依据你的注册中心实现，Nacos 通常不区分大小写，但习惯小写）。
+          # - Path 的模板使用 Ant 风格通配符，/** 表示包括多层路径，如 /user/a/b。
+          # - 如果需要去掉前缀（例如下游服务不希望接收到 /user 前缀），可以添加 filter：StripPrefix 或 RewritePath。
+
+        # 2. 订单服务路由 (由 seckill-order 负责)
+        - id: order-route
+          uri: lb://seckill-order
+          predicates:
+            # 说明：希望同时匹配 /seckill/** 和 /order/** 两种路径时，可以使用逗号分隔的多个模板。
+            # 注意格式：在 Spring Cloud Gateway 的 YAML 中，Path 断言可以写成 "Path=/seckill/**,/order/**"
+            # 原始示例用逗号和空格分隔（也能被某些解析器接受），但推荐不带空格以避免解析差异。
+            - Path=/seckill/**,/order/** # 既然秒杀接口在 /seckill，测试在 /order，都转给它
+          # 建议：
+          # - 若你期望对 /order/** 使用独立的 filter（如鉴权策略与 /seckill/** 不同），请拆成两个独立路由（不同 id），便于精细控制。
+          # - 若要修改转发给下游的路径（例如把 /seckill/xxx 转为 /xxx），使用 RewritePath 或 StripPrefix 过滤器。
+
+        # 3. 商品服务路由
+        - id: goods-route
+          uri: lb://seckill-goods
+          predicates:
+            - Path=/goods/**
+
+# 其他常见可选项（未在原文件中出现，提供参考）
+# spring:
+#   cloud:
+#     gateway:
+#       default-filters:
+#         - StripPrefix=1       # 全局默认移除路径前缀（示例）
+#       globalcors:
+#         corsConfigurations:
+#           '[/**]':
+#             allowedOrigins: "*"
+#             allowedMethods:
+#             - GET
+#             - POST
+#             - PUT
+#             - DELETE
+#       # 连接/转发超时、重试策略、限流等可以在 filters 或外部组件中配置

@@ -20,6 +20,7 @@
         <module name="seckill-goods" />
         <module name="seckill-user" />
         <module name="seckill-order" />
+        <module name="seckill-gateway" />
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel>
