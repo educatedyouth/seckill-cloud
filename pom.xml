@@ -29,10 +29,16 @@
         <lombok.version>1.18.30</lombok.version>
         <hutool.version>5.8.18</hutool.version>
         <mysql.version>8.0.33</mysql.version>
+        <redis.version>4.3.1</redis.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>redis.clients</groupId>
+                <artifactId>jedis</artifactId>
+                <version>${redis.version}</version>
+            </dependency>
             <dependency>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-dependencies</artifactId>
