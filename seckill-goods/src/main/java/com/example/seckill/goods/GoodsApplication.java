@@ -11,5 +11,6 @@ import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 public class GoodsApplication {
     public static void main(String[] args) {
         SpringApplication.run(GoodsApplication.class, args);
+        System.out.println(new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder().encode("123456"));
     }
 }

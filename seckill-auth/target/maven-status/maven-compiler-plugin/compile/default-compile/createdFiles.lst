@@ -1,0 +1,5 @@
+com\example\seckill\auth\controller\AuthController.class
+com\example\seckill\auth\AuthApplication.class
+com\example\seckill\auth\feign\UserFeignClient.class
+com\example\seckill\auth\vo\LoginVo.class
+com\example\seckill\auth\config\SecurityConfig.class

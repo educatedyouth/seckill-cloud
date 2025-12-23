@@ -21,6 +21,7 @@
         <module name="seckill-user" />
         <module name="seckill-order" />
         <module name="seckill-gateway" />
+        <module name="seckill-auth" />
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel>

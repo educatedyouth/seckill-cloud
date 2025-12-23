@@ -1,0 +1,4 @@
+com\example\seckill\gateway\config\CorsConfig.class
+com\example\seckill\gateway\config\GatewaySentinelConfig.class
+com\example\seckill\gateway\GatewayApplication.class
+com\example\seckill\gateway\config\GatewaySentinelConfig$1.class

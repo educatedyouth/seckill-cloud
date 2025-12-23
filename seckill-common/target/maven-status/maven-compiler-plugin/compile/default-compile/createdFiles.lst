@@ -1,3 +1,4 @@
+com\example\seckill\common\utils\JwtUtil.class
 com\example\seckill\common\entity\Order.class
 com\example\seckill\common\entity\User.class
 com\example\seckill\common\result\Result.class

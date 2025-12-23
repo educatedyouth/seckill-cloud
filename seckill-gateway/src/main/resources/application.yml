@@ -15,6 +15,8 @@ spring:
         # Nacos 注册中心的地址（IP:PORT 或 域名:PORT）
         # 说明：Gateway 在启用注册发现时会向该地址注册自身并从中发现其他服务。
         server-addr: 100.113.176.73:8848 # Nacos 地址（示例：IP:端口）
+      config:
+          server-addr: 100.113.176.73:8848 # 必须是真实IP
         # 注意：
         # - 若有多个 Nacos 节点，推荐使用逗号分隔的多个地址或负载均衡的 VIP 域名，如 "host1:8848,host2:8848"。
         # - 确保网关容器/主机能连通该地址（网络、端口、ACL/防火墙）。
@@ -79,6 +81,11 @@ spring:
           uri: lb://seckill-goods
           predicates:
             - Path=/goods/**
+        # 4. 认证服务路由 (补上这个！)
+        - id: auth-route
+          uri: lb://seckill-auth
+          predicates:
+            - Path=/auth/**
 
 # 其他常见可选项（未在原文件中出现，提供参考）
 # spring:

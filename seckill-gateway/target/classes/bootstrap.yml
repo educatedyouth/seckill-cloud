@@ -1,0 +1,12 @@
+spring:
+  application:
+    name: seckill-gateway
+  cloud:
+    nacos:
+      # 【核心】在引导阶段就告诉它 Nacos 在哪
+      server-addr: 100.113.176.73:8848
+      config:
+        server-addr: 100.113.176.73:8848
+        file-extension: yaml
+      discovery:
+        server-addr: 100.113.176.73:8848

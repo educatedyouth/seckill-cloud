@@ -1,3 +1,5 @@
+com\example\seckill\user\service\UserService.class
+com\example\seckill\user\service\impl\UserServiceImpl.class
 com\example\seckill\user\controller\UserController.class
 com\example\seckill\user\UserApplication.class
 com\example\seckill\user\mapper\UserMapper.class

@@ -1,0 +1,12 @@
+spring:
+  application:
+    name: seckill-auth
+  cloud:
+    nacos:
+      config:
+        server-addr: 100.113.176.73:8848
+        file-extension: yaml
+        # 【核心】加载共享配置
+        shared-configs:
+          - data-id: seckill-common.yaml
+            refresh: true # 开启自动刷新：你在 Nacos 改了密钥，服务不用重启就能生效
