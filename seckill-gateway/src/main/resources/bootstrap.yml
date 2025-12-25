@@ -8,5 +8,8 @@ spring:
       config:
         server-addr: 100.113.176.73:8848
         file-extension: yaml
+        shared-configs:
+            - data-id: seckill-common.yaml  # 必须要读取这个共享文件
+              refresh: true                 # 允许动态刷新
       discovery:
         server-addr: 100.113.176.73:8848

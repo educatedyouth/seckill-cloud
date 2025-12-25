@@ -2,12 +2,10 @@ package com.example.seckill.user.controller;
 
 import com.example.seckill.common.result.Result;
 import com.example.seckill.common.entity.User;
+import com.example.seckill.common.vo.RegisterVo;
 import com.example.seckill.user.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/user")
@@ -26,13 +24,30 @@ public class UserController {
         }
         return Result.success(user);
     }
-    @GetMapping("/get/{id}")
-    public Result<User> getUser(@PathVariable Integer id) {
+
+    // 以下为非内部接口
+    @GetMapping("/get/{phoneNumber}")
+    public Result<User> getUserByPhone(@PathVariable String phoneNumber) {
         // 暂时 mock 一个数据，不查数据库，先跑通流程
-        User user = new User();
-        user.setId(id);
-        user.setUsername("TestUser_" + id);
-        user.setPhone("13800138000");
+        User user = userService.getByPhone(phoneNumber);
         return Result.success(user);
+    }
+    /**
+     * 用户注册接口
+     * POST /user/register
+     */
+    @PostMapping("/register")
+    public Result<User> register(@RequestBody RegisterVo registerVo) {
+        // 简单的参数判空
+        if (registerVo.getUsername() == null || registerVo.getPassword() == null) {
+            return Result.error("用户名或密码不能为空");
+        }
+
+        try {
+            User user = userService.register(registerVo);
+            return Result.success(user);
+        } catch (Exception e) {
+            return Result.error(e.getMessage());
+        }
     }
 }

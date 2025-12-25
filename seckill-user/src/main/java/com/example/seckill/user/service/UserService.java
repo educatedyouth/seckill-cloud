@@ -14,4 +14,13 @@ public interface UserService extends IService<User> {
      * 专门给 Auth 服务用的
      */
     User getByUsername(String username);
+
+    /**
+     * 用户注册
+     * @param registerVo 注册信息
+     * @return 注册成功的用户对象（不含密码）
+     */
+    User register(com.example.seckill.common.vo.RegisterVo registerVo);
+
+    User getByPhone(String phoneNumber);
 }

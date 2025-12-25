@@ -1,7 +1,7 @@
 package com.example.seckill.auth.controller;
 
 import com.example.seckill.auth.feign.UserFeignClient;
-import com.example.seckill.auth.vo.LoginVo;
+import com.example.seckill.common.vo.LoginVo;
 import com.example.seckill.common.entity.User;
 import com.example.seckill.common.result.Result;
 import com.example.seckill.common.utils.JwtUtil;

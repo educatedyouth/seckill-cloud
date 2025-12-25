@@ -1,4 +1,4 @@
-package com.example.seckill.auth.vo;
+package com.example.seckill.common.vo;
 
 import lombok.Data;
 

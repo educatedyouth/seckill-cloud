@@ -1,5 +1,5 @@
 server:
-  port: 8020 # 用户服务占用 8010 端口
+  port: 8021 # 用户服务占用 8010 端口
 
 spring:
   application:

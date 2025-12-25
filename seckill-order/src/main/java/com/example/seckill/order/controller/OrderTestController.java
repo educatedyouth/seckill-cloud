@@ -25,4 +25,9 @@ public class OrderTestController {
 
         return userResult;
     }
+    @GetMapping("/whoami")
+    public String whoAmI() {
+        Long userId = com.example.seckill.common.context.UserContext.getUserId();
+        return "当前登录用户ID是: " + userId;
+    }
 }
