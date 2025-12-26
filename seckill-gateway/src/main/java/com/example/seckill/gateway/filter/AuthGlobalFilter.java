@@ -28,7 +28,7 @@ class AuthGlobalFilter implements GlobalFilter, Ordered {
     // 白名单路径 (不需要 Token 就能访问)
     private static final List<String> WHITE_LIST = List.of(
             "/auth/login",
-            "/user/register",
+            "/auth/register",
             "/doc.html" // 如果有 Swagger
     );
 
@@ -36,22 +36,26 @@ class AuthGlobalFilter implements GlobalFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        ServerHttpRequest request = exchange.getRequest();
-        String path = request.getURI().getPath();
+        String path = exchange.getRequest().getURI().getPath();
 
-        // 1. 白名单放行
-        for (String whitePath : WHITE_LIST) {
-            if (pathMatcher.match(whitePath, path)) {
-                return chain.filter(exchange);
-            }
+        // 🔥 1. 第一步：必须先判断白名单！如果是注册或登录，直接放行，不要碰 Token
+        if (path.contains("/auth/login") || path.contains("/auth/register")) {
+            return chain.filter(exchange); // 直接放行
         }
 
-        // 2. 获取 Token
-        // 约定：前端把 Token 放在 Header 的 "Authorization" 字段里
-        String token = request.getHeaders().getFirst("Authorization");
+        // 2. 第二步：白名单之外的接口，再去拿 Token
+        String token = exchange.getRequest().getHeaders().getFirst("Authorization");
+
+        // 3. 第三步：判空（防止乱发请求导致的 500）
+        if (token == null || token.isEmpty()) {
+            exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+            return exchange.getResponse().setComplete();
+        }
+
+        ServerHttpRequest request = exchange.getRequest();
 
         // 3. 校验 Token
-        if (token == null || !jwtUtil.validateToken(token)) {
+        if (!jwtUtil.validateToken(token)) {
             log.warn("拦截非法请求，路径: {}", path);
             return makeResponse(exchange.getResponse(), HttpStatus.UNAUTHORIZED, "未登录或 Token 失效");
         }
