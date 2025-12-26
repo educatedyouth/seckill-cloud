@@ -1,0 +1,25 @@
+package com.example.seckill.goods.entity;
+
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+import lombok.Data;
+import java.math.BigDecimal;
+import java.util.Date;
+import java.io.Serializable;
+
+@Data
+@TableName("pms_spu_info")
+public class SpuInfo implements Serializable {
+    private static final long serialVersionUID = 1L;
+
+    @TableId
+    private Long id;
+    private String spuName;
+    private String spuDescription;
+    private Long categoryId;
+    private Long brandId;
+    private BigDecimal weight;
+    private Integer publishStatus; // 0下架 1上架
+    private Date createTime;
+    private Date updateTime;
+}

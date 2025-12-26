@@ -9,13 +9,12 @@ spring:
     nacos:
       discovery:
         server-addr: 100.113.176.73:8848 # Nacos 地址 (Linux IP)
-
-  # 数据库配置 (沿用之前的)
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://100.113.176.73:3306/seckill_db?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+    # 👇 【关键修改】将库名修正为 seckill_goods
+    url: jdbc:mysql://100.113.176.73:3306/seckill_goods?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
     username: root
-    password: root
+    password: root # 请确认密码是否正确
 
 mybatis-plus:
   configuration:

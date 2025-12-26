@@ -7,6 +7,7 @@ import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.core.io.buffer.DataBuffer;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpResponse;
@@ -21,7 +22,8 @@ import java.util.List;
 @Component
 @Slf4j
 class AuthGlobalFilter implements GlobalFilter, Ordered {
-
+    @Autowired
+    private StringRedisTemplate redisTemplate;
     @Autowired
     private JwtUtil jwtUtil;
 
@@ -39,7 +41,9 @@ class AuthGlobalFilter implements GlobalFilter, Ordered {
         String path = exchange.getRequest().getURI().getPath();
 
         // 🔥 1. 第一步：必须先判断白名单！如果是注册或登录，直接放行，不要碰 Token
-        if (path.contains("/auth/login") || path.contains("/auth/register")) {
+        if (path.contains("/auth/login") ||
+                path.contains("/auth/register") ||
+                path.contains("/category")) {
             return chain.filter(exchange); // 直接放行
         }
 
@@ -49,6 +53,19 @@ class AuthGlobalFilter implements GlobalFilter, Ordered {
         // 3. 第三步：判空（防止乱发请求导致的 500）
         if (token == null || token.isEmpty()) {
             exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+            return exchange.getResponse().setComplete();
+        }
+        // 2. 判断并处理 "Bearer " 前缀
+        if (token.startsWith("Bearer ")) {
+            // 截取 "Bearer " (7个字符) 之后的部分
+            token = token.substring(7);
+        }
+        // 2. 【新增】黑名单校验 (核心逻辑)
+        Boolean isBlacklisted = redisTemplate.hasKey("blacklist:token:" + token);
+        if (isBlacklisted) {
+            // 如果在黑名单里，说明已经登出，直接拦截
+            exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+            // 可以通过 DataBufferFactory 返回一段 JSON 提示 "Token已失效"
             return exchange.getResponse().setComplete();
         }
 

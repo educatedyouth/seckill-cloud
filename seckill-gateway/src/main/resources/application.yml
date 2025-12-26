@@ -5,6 +5,11 @@ server:
   port: 8080 # 网关统一对外端口（客户端请求到达此端口，由 Gateway 进行路由转发）
 
 spring:
+  data:
+    redis:
+      host: 100.113.176.73
+      port: 6379
+      password: root
   application:
     # 应用名（用于注册到服务发现的实例名）
     name: seckill-gateway
@@ -80,7 +85,7 @@ spring:
         - id: goods-route
           uri: lb://seckill-goods
           predicates:
-            - Path=/goods/**
+            - Path=/goods/**,/category/** # 拦截商品和分类的请求
         # 4. 认证服务路由 (补上这个！)
         - id: auth-route
           uri: lb://seckill-auth
