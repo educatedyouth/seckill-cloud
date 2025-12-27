@@ -1,22 +1,40 @@
 package com.example.seckill.goods.vo;
 
+import com.example.seckill.goods.entity.SkuImages;
 import com.example.seckill.goods.entity.SkuInfo;
+import com.example.seckill.goods.entity.SkuSaleAttrValue;
 import com.example.seckill.goods.entity.SpuInfo;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+
+import java.io.Serializable;
 import java.util.List;
 
 /**
- * 商品详情页聚合视图对象
+ * 商品详情页聚合视图对象 (Product Detail Page VO)
+ * 架构师批注：这是前后端交互的核心协议，包含了渲染详情页所需的所有数据
  */
 @Data
-public class GoodsDetailVO {
-    // SPU 基本信息 (包含标题、描述)
+public class GoodsDetailVO implements Serializable {
+    private static final long serialVersionUID = 1L;
+
+    // 1. SPU 基本信息 (标题、描述、SPU图)
     private SpuInfo spuInfo;
 
-    // SKU 列表 (前端需要根据这个列表来计算：当选中"红色"时，"128G"是否还有货)
-    private List<SkuInfo> skuList;
+    // 2. 增强版 SKU 列表 (前端不仅需要价格库存，还需要知道每个SKU对应的规格属性)
+    private List<SkuItem> skuList;
 
-    // 这里通常还需要 "销售属性组合" (SaleAttrGroup)，
-    // 但为了降低复杂度，目前第一版我们可以先让前端直接处理 skuList
-    // 后续在 "SKU 联动" 环节如果性能不够，再补全后端预计算逻辑
+    /**
+     * 内部静态类：SKU 聚合条目
+     * 继承 SkuInfo 获取基础字段，同时扩展 属性列表 和 图片列表
+     */
+    @Data
+    @EqualsAndHashCode(callSuper = true)
+    public static class SkuItem extends SkuInfo {
+        // 该 SKU 对应的销售属性组合 (e.g. [{"颜色","红"}, {"内存","128G"}])
+        private List<SkuSaleAttrValue> saleAttrValues;
+
+        // 该 SKU 的特定图片集 (如果有的话)
+        private List<SkuImages> images;
+    }
 }

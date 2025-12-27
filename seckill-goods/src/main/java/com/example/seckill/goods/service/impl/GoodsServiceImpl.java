@@ -1,12 +1,14 @@
 // seckill-goods/src/main/java/com/example/seckill/goods/service/impl/GoodsServiceImpl.java
 package com.example.seckill.goods.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.example.seckill.goods.dto.SkuSaveDTO;
 import com.example.seckill.goods.dto.SpuSaveDTO;
 import com.example.seckill.goods.entity.*;
 import com.example.seckill.goods.mapper.*;
 import com.example.seckill.goods.service.GoodsService;
+import com.example.seckill.goods.vo.GoodsDetailVO;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -14,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -94,5 +97,62 @@ public class GoodsServiceImpl extends ServiceImpl<SpuInfoMapper, SpuInfo> implem
                 }
             }
         }
+    }
+    @Override
+    public GoodsDetailVO getGoodsDetail(Long spuId) {
+        // 1. 查询 SPU 主表
+        SpuInfo spuInfo = this.getById(spuId);
+        if (spuInfo == null) {
+            return null; // 或者抛出业务异常
+        }
+
+        // 生产级校验：如果做的是C端接口，这里必须判断上下架状态
+        // if (spuInfo.getPublishStatus() != 1) { throw ... }
+
+        // 2. 查询该 SPU 下所有的 SKU
+        LambdaQueryWrapper<SkuInfo> skuQuery = new LambdaQueryWrapper<>();
+        skuQuery.eq(SkuInfo::getSpuId, spuId);
+        List<SkuInfo> rawSkuList = skuInfoMapper.selectList(skuQuery);
+
+        if (rawSkuList == null || rawSkuList.isEmpty()) {
+            // 构造仅有 SPU 的空数据返回，防止空指针
+            GoodsDetailVO vo = new GoodsDetailVO();
+            vo.setSpuInfo(spuInfo);
+            return vo;
+        }
+
+        // 3. 收集所有的 skuId，准备批量查询属性 (避免在循环中查库，这是性能杀手)
+        List<Long> skuIds = rawSkuList.stream()
+                .map(SkuInfo::getSkuId)
+                .collect(Collectors.toList());
+
+        // 4. 批量查询所有相关 SKU 的销售属性 (pms_sku_sale_attr_value)
+        LambdaQueryWrapper<SkuSaleAttrValue> attrQuery = new LambdaQueryWrapper<>();
+        attrQuery.in(SkuSaleAttrValue::getSkuId, skuIds);
+        // 按排序字段排序，保证前端展示顺序一致
+        attrQuery.orderByAsc(SkuSaleAttrValue::getAttrSort);
+        List<SkuSaleAttrValue> allAttrValues = skuSaleAttrValueMapper.selectList(attrQuery);
+
+        // 5. 内存聚合 (Memory Aggregation)
+        // 将扁平的属性列表，按 skuId 分组
+        Map<Long, List<SkuSaleAttrValue>> attrGroupMap = allAttrValues.stream()
+                .collect(Collectors.groupingBy(SkuSaleAttrValue::getSkuId));
+
+        // 6. 组装最终的 SKUItem 列表
+        List<GoodsDetailVO.SkuItem> skuItems = rawSkuList.stream().map(sku -> {
+            GoodsDetailVO.SkuItem item = new GoodsDetailVO.SkuItem();
+            // 复制 SKU 基础属性
+            BeanUtils.copyProperties(sku, item);
+            // 设置对应的属性列表
+            item.setSaleAttrValues(attrGroupMap.get(sku.getSkuId()));
+            return item;
+        }).collect(Collectors.toList());
+
+        // 7. 封装最终 VO
+        GoodsDetailVO vo = new GoodsDetailVO();
+        vo.setSpuInfo(spuInfo);
+        vo.setSkuList(skuItems);
+
+        return vo;
     }
 }
