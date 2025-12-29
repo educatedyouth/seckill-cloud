@@ -91,7 +91,11 @@ spring:
           uri: lb://seckill-auth
           predicates:
             - Path=/auth/**
-
+        # 5. 第三方服务路由 (文件上传)
+        - id: thirdparty-route
+          uri: lb://seckill-thirdparty
+          predicates:
+            - Path=/thirdparty/**
 # 其他常见可选项（未在原文件中出现，提供参考）
 # spring:
 #   cloud:

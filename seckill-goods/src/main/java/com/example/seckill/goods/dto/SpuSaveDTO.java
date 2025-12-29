@@ -18,7 +18,7 @@ public class SpuSaveDTO {
     private Long brandId;
     private BigDecimal weight;
     private Integer publishStatus; // 0-下架 1-上架
-
+    private String spuImg;
     // --- SPU 图片集 (逗号分隔的URL字符串，或者用 List<String>，这里为了方便数据库存取暂定 List<String>) ---
     private List<String> spuImages;
 

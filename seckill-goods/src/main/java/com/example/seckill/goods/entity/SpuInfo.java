@@ -22,4 +22,6 @@ public class SpuInfo implements Serializable {
     private Integer publishStatus; // 0下架 1上架
     private Date createTime;
     private Date updateTime;
+    // === 新增这一行 ===
+    private String spuImg; // 对应数据库的 spu_img 字段
 }

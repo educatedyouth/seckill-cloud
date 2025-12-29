@@ -1,0 +1,19 @@
+server:
+  # port: 9000 # 注意：如果本地端口冲突，可以改，比如 30000，但 MinIO 容器占了 9000，这里建议避开，改为 8090
+  # 修正：MinIO Server 占用 9000，我们的 Java 服务不要用 9000
+  port: 8090
+
+spring:
+  application:
+    name: seckill-thirdparty
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 100.113.176.73:8848
+
+# 自定义 MinIO 配置
+minio:
+  endpoint: http://100.113.176.73:9000 # MinIO 服务地址
+  accessKey: admin
+  secretKey: 12345678       # 你启动 Docker 时设置的密码
+  bucketName: seckill

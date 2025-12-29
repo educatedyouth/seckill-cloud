@@ -1,0 +1,32 @@
+{
+  "groups": [
+    {
+      "name": "minio",
+      "type": "com.example.seckill.thirdparty.config.MinioConfig",
+      "sourceType": "com.example.seckill.thirdparty.config.MinioConfig"
+    }
+  ],
+  "properties": [
+    {
+      "name": "minio.access-key",
+      "type": "java.lang.String",
+      "sourceType": "com.example.seckill.thirdparty.config.MinioConfig"
+    },
+    {
+      "name": "minio.bucket-name",
+      "type": "java.lang.String",
+      "sourceType": "com.example.seckill.thirdparty.config.MinioConfig"
+    },
+    {
+      "name": "minio.endpoint",
+      "type": "java.lang.String",
+      "sourceType": "com.example.seckill.thirdparty.config.MinioConfig"
+    },
+    {
+      "name": "minio.secret-key",
+      "type": "java.lang.String",
+      "sourceType": "com.example.seckill.thirdparty.config.MinioConfig"
+    }
+  ],
+  "hints": []
+}

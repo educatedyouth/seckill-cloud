@@ -16,11 +16,12 @@
           <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.30/lombok-1.18.30.jar" />
           <entry name="$MAVEN_REPOSITORY$/org/springframework/boot/spring-boot-configuration-processor/3.0.5/spring-boot-configuration-processor-3.0.5.jar" />
         </processorPath>
+        <module name="seckill-order" />
+        <module name="seckill-gateway" />
         <module name="seckill-common" />
         <module name="seckill-goods" />
         <module name="seckill-user" />
-        <module name="seckill-order" />
-        <module name="seckill-gateway" />
+        <module name="seckill-thirdparty" />
         <module name="seckill-auth" />
       </profile>
     </annotationProcessing>

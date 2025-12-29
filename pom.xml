@@ -18,6 +18,7 @@
         <module>seckill-order</module>
         <module>seckill-gateway</module>
         <module>seckill-auth</module>
+        <module>seckill-thirdparty</module>
     </modules>
 
     <properties>
