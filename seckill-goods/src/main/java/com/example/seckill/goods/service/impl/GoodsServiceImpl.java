@@ -103,11 +103,8 @@ public class GoodsServiceImpl extends ServiceImpl<SpuInfoMapper, SpuInfo> implem
         // 1. 查询 SPU 主表
         SpuInfo spuInfo = this.getById(spuId);
         if (spuInfo == null) {
-            return null; // 或者抛出业务异常
+            return null;
         }
-
-        // 生产级校验：如果做的是C端接口，这里必须判断上下架状态
-        // if (spuInfo.getPublishStatus() != 1) { throw ... }
 
         // 2. 查询该 SPU 下所有的 SKU
         LambdaQueryWrapper<SkuInfo> skuQuery = new LambdaQueryWrapper<>();
@@ -115,36 +112,48 @@ public class GoodsServiceImpl extends ServiceImpl<SpuInfoMapper, SpuInfo> implem
         List<SkuInfo> rawSkuList = skuInfoMapper.selectList(skuQuery);
 
         if (rawSkuList == null || rawSkuList.isEmpty()) {
-            // 构造仅有 SPU 的空数据返回，防止空指针
             GoodsDetailVO vo = new GoodsDetailVO();
             vo.setSpuInfo(spuInfo);
             return vo;
         }
 
-        // 3. 收集所有的 skuId，准备批量查询属性 (避免在循环中查库，这是性能杀手)
+        // 3. 收集所有的 skuId (这是批量查询的基础，防止循环查库)
         List<Long> skuIds = rawSkuList.stream()
                 .map(SkuInfo::getSkuId)
                 .collect(Collectors.toList());
 
-        // 4. 批量查询所有相关 SKU 的销售属性 (pms_sku_sale_attr_value)
+        // 4.1 批量查询所有相关 SKU 的销售属性 (pms_sku_sale_attr_value)
         LambdaQueryWrapper<SkuSaleAttrValue> attrQuery = new LambdaQueryWrapper<>();
         attrQuery.in(SkuSaleAttrValue::getSkuId, skuIds);
-        // 按排序字段排序，保证前端展示顺序一致
         attrQuery.orderByAsc(SkuSaleAttrValue::getAttrSort);
         List<SkuSaleAttrValue> allAttrValues = skuSaleAttrValueMapper.selectList(attrQuery);
 
+        // 4.2 【新增】批量查询所有相关 SKU 的图片 (pms_sku_images)
+        // 架构师批注：这是为了解决前端无法切换图片的问题。必须一次性查出，禁止在循环中调用 mapper
+        LambdaQueryWrapper<SkuImages> imgQuery = new LambdaQueryWrapper<>();
+        imgQuery.in(SkuImages::getSkuId, skuIds);
+        List<SkuImages> allImages = skuImagesMapper.selectList(imgQuery);
+
         // 5. 内存聚合 (Memory Aggregation)
-        // 将扁平的属性列表，按 skuId 分组
+        // 5.1 分组属性
         Map<Long, List<SkuSaleAttrValue>> attrGroupMap = allAttrValues.stream()
                 .collect(Collectors.groupingBy(SkuSaleAttrValue::getSkuId));
+
+        // 5.2 【新增】分组图片
+        Map<Long, List<SkuImages>> imgGroupMap = allImages.stream()
+                .collect(Collectors.groupingBy(SkuImages::getSkuId));
 
         // 6. 组装最终的 SKUItem 列表
         List<GoodsDetailVO.SkuItem> skuItems = rawSkuList.stream().map(sku -> {
             GoodsDetailVO.SkuItem item = new GoodsDetailVO.SkuItem();
-            // 复制 SKU 基础属性
             BeanUtils.copyProperties(sku, item);
+
             // 设置对应的属性列表
             item.setSaleAttrValues(attrGroupMap.get(sku.getSkuId()));
+
+            // 【新增】设置对应的图片列表
+            item.setImages(imgGroupMap.get(sku.getSkuId()));
+
             return item;
         }).collect(Collectors.toList());
 
