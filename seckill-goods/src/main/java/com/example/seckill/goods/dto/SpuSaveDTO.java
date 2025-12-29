@@ -10,7 +10,8 @@ import java.util.List;
  */
 @Data
 public class SpuSaveDTO {
-
+    // 【新增】SPU ID (修改商品时必传，新增时可为空)
+    private Long id;
     // --- SPU 基本信息 ---
     private String spuName;
     private String spuDescription;
@@ -24,4 +25,6 @@ public class SpuSaveDTO {
 
     // --- SKU 列表 (核心) ---
     private List<SkuSaveDTO> skus;
+    // 【新增】
+    private Long userId; // 仅仅作为传输用
 }

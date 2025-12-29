@@ -43,7 +43,9 @@ class AuthGlobalFilter implements GlobalFilter, Ordered {
         // 🔥 1. 第一步：必须先判断白名单！如果是注册或登录，直接放行，不要碰 Token
         if (path.contains("/auth/login") ||
                 path.contains("/auth/register") ||
-                path.contains("/category")) {
+                path.contains("/category") ||
+                path.contains("/doc.html") ||
+                (path.contains("/goods") && !path.contains("/goods/save") && !path.contains("/goods/my-list"))) { // 放行 /goods 下除 /save 外的接口
             return chain.filter(exchange); // 直接放行
         }
 

@@ -6,6 +6,8 @@ import java.util.List;
 
 @Data
 public class SkuSaveDTO {
+    // 【新增】SKU ID (用于后端判断是更新旧SKU还是插入新SKU)
+    private Long skuId;
     private String skuName;
     private String skuTitle;
     private String skuSubtitle;

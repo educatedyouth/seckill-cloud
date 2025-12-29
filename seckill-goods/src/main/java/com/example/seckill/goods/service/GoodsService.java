@@ -19,4 +19,7 @@ public interface GoodsService extends IService<SpuInfo> {
      */
     // seckill-goods/src/main/java/com/example/seckill/goods/service/GoodsService.java
     GoodsDetailVO getGoodsDetail(Long spuId);
+
+    void updateGoods(SpuSaveDTO dto);
+    void updateStatus(Long spuId, Integer status);
 }

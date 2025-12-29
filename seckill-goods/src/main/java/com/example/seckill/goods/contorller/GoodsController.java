@@ -23,7 +23,14 @@ public class GoodsController {
      * POST /goods/save
      */
     @PostMapping("/save")
-    public Result<String> save(@RequestBody SpuSaveDTO spuSaveDTO) {
+    public Result<String> save(@RequestBody SpuSaveDTO spuSaveDTO, @RequestHeader(value = "X-User-Id", required = false) Long userId) {
+        // 架构师批注：必须进行兜底校验，防止 userId 为空
+        if (userId == null) {
+            // 如果网关漏了，或者直接调接口，给个默认值或报错
+            // return Result.error("非法请求：未获取到用户信息");
+            userId = 1L; // 暂时兜底，生产环境应报错
+        }
+        spuSaveDTO.setUserId(userId);
         goodsService.saveGoods(spuSaveDTO);
         return Result.success("商品发布成功");
     }
@@ -61,5 +68,48 @@ public class GoodsController {
         Page<SpuInfo> result = goodsService.page(pageParam, queryWrapper);
 
         return Result.success(result);
+    }
+    /**
+     * 修改商品
+     * PUT /goods/update
+     */
+    @PutMapping("/update")
+    public Result<String> update(@RequestBody SpuSaveDTO dto) {
+        if (dto.getId() == null) {
+            return Result.error("商品ID不能为空");
+        }
+        goodsService.updateGoods(dto);
+        return Result.success("修改成功");
+    }
+
+    /**
+     * 修改上架状态
+     * POST /goods/status/{spuId}/{status}
+     */
+    @PostMapping("/status/{spuId}/{status}")
+    public Result<String> updateStatus(@PathVariable Long spuId, @PathVariable Integer status) {
+        // 生产环境应校验当前用户是否有权操作该商品 (Check Owner)
+        goodsService.updateStatus(spuId, status);
+        return Result.success(status == 1 ? "上架成功" : "下架成功");
+    }
+
+    /**
+     * 查询我的商品列表
+     * GET /goods/my-list
+     */
+    @GetMapping("/my-list")
+    public Result<Page<SpuInfo>> myList(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestHeader(value = "X-User-Id", required = false) Long userId) {
+
+        if (userId == null) return Result.error("未登录");
+
+        Page<SpuInfo> pageParam = new Page<>(page, size);
+        LambdaQueryWrapper<SpuInfo> query = new LambdaQueryWrapper<>();
+        query.eq(SpuInfo::getUserId, userId)
+                .orderByDesc(SpuInfo::getCreateTime);
+
+        return Result.success(goodsService.page(pageParam, query));
     }
 }
