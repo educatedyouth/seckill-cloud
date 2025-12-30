@@ -22,4 +22,8 @@ public interface GoodsService extends IService<SpuInfo> {
 
     void updateGoods(SpuSaveDTO dto);
     void updateStatus(Long spuId, Integer status);
+    /**
+     * 级联删除商品 (SPU + SKU + Images + Attrs)
+     */
+    void removeGoods(Long spuId);
 }

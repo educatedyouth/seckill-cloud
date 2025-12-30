@@ -112,4 +112,13 @@ public class GoodsController {
 
         return Result.success(goodsService.page(pageParam, query));
     }
+    /**
+     * 删除商品
+     * DELETE /goods/delete/{spuId}
+     */
+    @DeleteMapping("/delete/{spuId}")
+    public Result<String> delete(@PathVariable Long spuId) {
+        goodsService.removeGoods(spuId);
+        return Result.success("删除成功");
+    }
 }

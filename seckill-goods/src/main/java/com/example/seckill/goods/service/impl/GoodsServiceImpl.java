@@ -73,7 +73,7 @@ public class GoodsServiceImpl extends ServiceImpl<SpuInfoMapper, SpuInfo> implem
                         skuImages.setImgUrl(img);
                         skuImages.setDefaultImg(img.equals(skuInfo.getSkuDefaultImg()) ? 1 : 0);
                         return skuImages;
-                    }).collect(Collectors.toList());
+                    }).toList();
 
                     // 循环插入 (MyBatis-Plus 批量插入需要额外配置，这里先用循环，简单直观)
                     for (SkuImages img : skuImagesList) {
@@ -89,7 +89,7 @@ public class GoodsServiceImpl extends ServiceImpl<SpuInfoMapper, SpuInfo> implem
                         BeanUtils.copyProperties(attr, val);
                         val.setSkuId(skuId);
                         return val;
-                    }).collect(Collectors.toList());
+                    }).toList();
 
                     for (SkuSaleAttrValue val : attrValues) {
                         skuSaleAttrValueMapper.insert(val);
@@ -292,5 +292,36 @@ public class GoodsServiceImpl extends ServiceImpl<SpuInfoMapper, SpuInfo> implem
         spuInfo.setPublishStatus(status);
         spuInfo.setUpdateTime(new Date());
         this.baseMapper.updateById(spuInfo);
+    }
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void removeGoods(Long spuId) {
+        // 1. 查出该 SPU 下所有的 SKU信息，我们需要用到 skuId
+        LambdaQueryWrapper<SkuInfo> skuQuery = new LambdaQueryWrapper<>();
+        skuQuery.eq(SkuInfo::getSpuId, spuId);
+        List<SkuInfo> skuList = skuInfoMapper.selectList(skuQuery);
+
+        // 如果有 SKU，需要先清理 SKU 相关联的从表数据
+        if (skuList != null && !skuList.isEmpty()) {
+            List<Long> skuIds = skuList.stream()
+                    .map(SkuInfo::getSkuId)
+                    .collect(Collectors.toList());
+
+            // 2. 批量删除 SKU 图片 (pms_sku_images)
+            LambdaQueryWrapper<SkuImages> imgWrapper = new LambdaQueryWrapper<>();
+            imgWrapper.in(SkuImages::getSkuId, skuIds);
+            skuImagesMapper.delete(imgWrapper);
+
+            // 3. 批量删除 SKU 销售属性 (pms_sku_sale_attr_value)
+            LambdaQueryWrapper<SkuSaleAttrValue> attrWrapper = new LambdaQueryWrapper<>();
+            attrWrapper.in(SkuSaleAttrValue::getSkuId, skuIds);
+            skuSaleAttrValueMapper.delete(attrWrapper);
+
+            // 4. 批量删除 SKU 本身 (pms_sku_info)
+            skuInfoMapper.deleteBatchIds(skuIds);
+        }
+
+        // 5. 最后删除 SPU 主表信息 (pms_spu_info)
+        this.removeById(spuId);
     }
 }

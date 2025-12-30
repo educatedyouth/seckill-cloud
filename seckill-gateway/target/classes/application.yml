@@ -85,7 +85,7 @@ spring:
         - id: goods-route
           uri: lb://seckill-goods
           predicates:
-            - Path=/goods/**,/category/** # 拦截商品和分类的请求
+            - Path=/goods/**,/category/**,/brand/** # 拦截商品和分类的请求
         # 4. 认证服务路由 (补上这个！)
         - id: auth-route
           uri: lb://seckill-auth
