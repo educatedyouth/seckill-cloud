@@ -21,6 +21,7 @@
         <module name="seckill-common" />
         <module name="seckill-goods" />
         <module name="seckill-user" />
+        <module name="seckill-search" />
         <module name="seckill-thirdparty" />
         <module name="seckill-auth" />
       </profile>

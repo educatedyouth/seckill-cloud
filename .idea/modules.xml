@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/seckill-thirdparty.iml" filepath="$PROJECT_DIR$/seckill-thirdparty.iml" />
+      <module fileurl="file://$PROJECT_DIR$/seckill-search.iml" filepath="$PROJECT_DIR$/seckill-search.iml" />
     </modules>
   </component>
 </project>

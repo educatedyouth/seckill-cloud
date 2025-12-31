@@ -1,0 +1,37 @@
+server:
+  port: 8050 # 修正：遵循 80x0 规范，与 Order(8030) 保持一致
+
+spring:
+  application:
+    name: seckill-search
+  cloud:
+    nacos:
+      discovery:
+        # 【核心】指向您的 Linux 服务器 Tailscale IP
+        server-addr: 100.113.176.73:8848
+      config:
+        # 【核心】指向您的 Linux 服务器 Tailscale IP
+        server-addr: 100.113.176.73:8848
+        file-extension: yaml
+        # 开启共享配置，读取 seckill.jwt.secret
+        shared-configs:
+            - data-id: seckill-common.yaml
+              refresh: true
+
+  # Elasticsearch 配置
+  elasticsearch:
+    # 【核心】指向您的 Linux 服务器 IP (已确认是 ES 8.x)
+    uris: http://100.113.176.73:9200
+    connection-timeout: 3s
+    socket-timeout: 8s
+    # 开发环境关闭了 x-pack，保持注释
+    # username: elastic
+    # password: your_password
+
+# RocketMQ 配置
+app:
+  rocketmq:
+    # 【核心】指向您的 Linux 服务器 IP
+    namesrv-addr: 100.113.176.73:9876
+    consumer-group: consumer_group_seckill_search
+    topic: goods-up-topic

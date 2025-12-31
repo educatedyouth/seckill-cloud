@@ -19,6 +19,7 @@
         <module>seckill-gateway</module>
         <module>seckill-auth</module>
         <module>seckill-thirdparty</module>
+        <module>seckill-search</module>
     </modules>
 
     <properties>
