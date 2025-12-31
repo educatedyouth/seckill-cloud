@@ -1,5 +1,10 @@
 com\example\seckill\user\service\UserService.class
 com\example\seckill\user\service\impl\UserServiceImpl.class
+com\example\seckill\user\controller\UserAddrController.class
 com\example\seckill\user\controller\UserController.class
+com\example\seckill\user\mapper\UserAddrMapper.class
+com\example\seckill\user\service\UserAddrService.class
+com\example\seckill\user\service\impl\UserAddrServiceImpl.class
 com\example\seckill\user\UserApplication.class
+com\example\seckill\user\config\WebMvcConfig.class
 com\example\seckill\user\mapper\UserMapper.class

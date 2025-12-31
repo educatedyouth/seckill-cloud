@@ -1,0 +1,4 @@
+com\example\seckill\thirdparty\controller\OssController.class
+com\example\seckill\thirdparty\config\MinioConfig.class
+META-INF\spring-configuration-metadata.json
+com\example\seckill\thirdparty\ThirdPartyApplication.class

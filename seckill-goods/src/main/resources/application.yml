@@ -19,3 +19,18 @@ spring:
 mybatis-plus:
   configuration:
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl # 打印 SQL 日志
+app:
+  rocketmq:
+    # 指向你的 Linux 服务器 NameServer
+    namesrv-addr: 100.113.176.73:9876
+    producer-group: goods-producer-group
+    # 定义 Topic，方便后续运维管理
+    goods-up-topic: goods-up-topic
+    goods-down-topic: goods-down-topic
+# 【新增】这是给官方 Starter 自动装配用的 (必须补上这几行！)
+rocketmq:
+  name-server: 100.113.176.73:9876
+  producer:
+    group: goods-producer-group
+    # 发送超时时间 (可选，建议设长一点防止网络抖动)
+    send-message-timeout: 3000

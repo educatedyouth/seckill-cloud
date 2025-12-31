@@ -1,5 +1,10 @@
+D:\JavaTest\seckill-cloud\seckill-user\src\main\java\com\example\seckill\user\mapper\UserAddrMapper.java
+D:\JavaTest\seckill-cloud\seckill-user\src\main\java\com\example\seckill\user\service\UserAddrService.java
 D:\JavaTest\seckill-cloud\seckill-user\src\main\java\com\example\seckill\user\controller\UserController.java
 D:\JavaTest\seckill-cloud\seckill-user\src\main\java\com\example\seckill\user\service\UserService.java
 D:\JavaTest\seckill-cloud\seckill-user\src\main\java\com\example\seckill\user\mapper\UserMapper.java
+D:\JavaTest\seckill-cloud\seckill-user\src\main\java\com\example\seckill\user\controller\UserAddrController.java
+D:\JavaTest\seckill-cloud\seckill-user\src\main\java\com\example\seckill\user\service\impl\UserAddrServiceImpl.java
+D:\JavaTest\seckill-cloud\seckill-user\src\main\java\com\example\seckill\user\config\WebMvcConfig.java
 D:\JavaTest\seckill-cloud\seckill-user\src\main\java\com\example\seckill\user\UserApplication.java
 D:\JavaTest\seckill-cloud\seckill-user\src\main\java\com\example\seckill\user\service\impl\UserServiceImpl.java

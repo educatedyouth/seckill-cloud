@@ -2,8 +2,8 @@ package com.example.seckill.goods.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.example.seckill.goods.dto.SpuSaveDTO;
-import com.example.seckill.goods.entity.SpuInfo;
-import com.example.seckill.goods.vo.GoodsDetailVO;
+import com.example.seckill.common.entity.SpuInfo;
+import com.example.seckill.common.vo.GoodsDetailVO;
 
 // seckill-goods/src/main/java/com/example/seckill/goods/service/GoodsService.java
 public interface GoodsService extends IService<SpuInfo> {

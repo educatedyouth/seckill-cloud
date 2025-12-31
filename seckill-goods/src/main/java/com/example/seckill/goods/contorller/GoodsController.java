@@ -4,9 +4,9 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.seckill.common.result.Result;
 import com.example.seckill.goods.dto.SpuSaveDTO;
-import com.example.seckill.goods.entity.SpuInfo;
+import com.example.seckill.common.entity.SpuInfo;
 import com.example.seckill.goods.service.GoodsService;
-import com.example.seckill.goods.vo.GoodsDetailVO;
+import com.example.seckill.common.vo.GoodsDetailVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 

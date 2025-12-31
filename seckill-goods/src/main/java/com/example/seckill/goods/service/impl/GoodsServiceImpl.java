@@ -3,21 +3,28 @@ package com.example.seckill.goods.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.example.seckill.common.entity.SkuImages;
+import com.example.seckill.common.entity.SkuInfo;
+import com.example.seckill.common.entity.SkuSaleAttrValue;
+import com.example.seckill.common.entity.SpuInfo;
 import com.example.seckill.goods.dto.SkuSaleAttrDTO;
 import com.example.seckill.goods.dto.SkuSaveDTO;
 import com.example.seckill.goods.dto.SpuSaveDTO;
-import com.example.seckill.goods.entity.*;
 import com.example.seckill.goods.mapper.*;
 import com.example.seckill.goods.service.GoodsService;
-import com.example.seckill.goods.vo.GoodsDetailVO;
+import com.example.seckill.common.vo.GoodsDetailVO;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.rocketmq.spring.core.RocketMQTemplate;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 import java.util.stream.Collectors;
-
+@Slf4j // 【新增】添加日志注解
 @Service
 public class GoodsServiceImpl extends ServiceImpl<SpuInfoMapper, SpuInfo> implements GoodsService {
 
@@ -27,7 +34,16 @@ public class GoodsServiceImpl extends ServiceImpl<SpuInfoMapper, SpuInfo> implem
     private SkuImagesMapper skuImagesMapper;
     @Autowired
     private SkuSaleAttrValueMapper skuSaleAttrValueMapper;
+    // 【新增】注入 RocketMQ 模板
+    @Autowired
+    private RocketMQTemplate rocketMQTemplate;
 
+    // 【新增】读取 Topic 配置
+    @Value("${app.rocketmq.goods-up-topic}")
+    private String goodsUpTopic;
+
+    @Value("${app.rocketmq.goods-down-topic}")
+    private String goodsDownTopic;
     @Transactional(rollbackFor = Exception.class) // 【关键】开启事务，任何一步失败全部回滚
     @Override
     public void saveGoods(SpuSaveDTO dto) {
@@ -96,6 +112,18 @@ public class GoodsServiceImpl extends ServiceImpl<SpuInfoMapper, SpuInfo> implem
                     }
                 }
             }
+        }
+        // 【核心改造】发送上架消息
+        // 1. 为什么只发 ID？ -> 极简传输，减少网络带宽，保证消息体小，吞吐量大。消费者拿到 ID 再反查，也能保证数据最终一致性。
+        // 2. 为什么用 syncSend？ -> 必须确保消息到了 Broker 才能算完，否则数据存了库但搜不到，属于线上事故。
+        try {
+            rocketMQTemplate.syncSend(goodsUpTopic, MessageBuilder.withPayload(spuId).build());
+            log.info(">>> 商品上架消息发送成功，spuId: {}", spuId);
+        } catch (Exception e) {
+            // 严谨处理：这里如果发消息失败，是否要回滚数据库？
+            // 策略 A (强一致)：抛出异常，回滚数据库，提示用户“网络抖动，请重试”。(我们选这个，保证数据一致)
+            log.error(">>> 商品上架消息发送失败，准备回滚，spuId: {}", spuInfo.getId(), e);
+            throw new RuntimeException("商品上架失败：消息队列连接异常");
         }
     }
     @Override
@@ -323,5 +351,13 @@ public class GoodsServiceImpl extends ServiceImpl<SpuInfoMapper, SpuInfo> implem
 
         // 5. 最后删除 SPU 主表信息 (pms_spu_info)
         this.removeById(spuId);
+        // 【核心改造】发送下架消息
+        try {
+            rocketMQTemplate.syncSend(goodsDownTopic, MessageBuilder.withPayload(spuId).build());
+            log.info(">>> 商品下架消息发送成功，spuId: {}", spuId);
+        } catch (Exception e) {
+            log.error(">>> 商品下架消息发送失败，准备回滚，spuId: {}", spuId, e);
+            throw new RuntimeException("商品下架失败：消息队列连接异常");
+        }
     }
 }

@@ -6,6 +6,7 @@ D:\JavaTest\seckill-cloud\seckill-order\src\main\java\com\example\seckill\order\
 D:\JavaTest\seckill-cloud\seckill-order\src\main\java\com\example\seckill\order\controller\SeckillController.java
 D:\JavaTest\seckill-cloud\seckill-order\src\main\java\com\example\seckill\order\config\DataSourceConfig.java
 D:\JavaTest\seckill-cloud\seckill-order\src\main\java\com\example\seckill\order\service\SeckillService.java
+D:\JavaTest\seckill-cloud\seckill-order\src\main\java\com\example\seckill\order\config\WebMvcConfig.java
 D:\JavaTest\seckill-cloud\seckill-order\src\main\java\com\example\seckill\order\mapper\OrderMapper.java
 D:\JavaTest\seckill-cloud\seckill-order\src\main\java\com\example\seckill\order\service\impl\SeckillServiceImpl.java
 D:\JavaTest\seckill-cloud\seckill-order\src\main\java\com\example\seckill\order\consumer\DLQConsumer.java

@@ -1,9 +1,9 @@
-package com.example.seckill.goods.vo;
+package com.example.seckill.common.vo;
 
-import com.example.seckill.goods.entity.SkuImages;
-import com.example.seckill.goods.entity.SkuInfo;
-import com.example.seckill.goods.entity.SkuSaleAttrValue;
-import com.example.seckill.goods.entity.SpuInfo;
+import com.example.seckill.common.entity.SkuImages;
+import com.example.seckill.common.entity.SkuInfo;
+import com.example.seckill.common.entity.SkuSaleAttrValue;
+import com.example.seckill.common.entity.SpuInfo;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 

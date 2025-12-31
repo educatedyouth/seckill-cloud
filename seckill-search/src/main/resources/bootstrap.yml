@@ -33,5 +33,7 @@ app:
   rocketmq:
     # 【核心】指向您的 Linux 服务器 IP
     namesrv-addr: 100.113.176.73:9876
-    consumer-group: consumer_group_seckill_search
+    consumer-group: search-consumer-group
     topic: goods-up-topic
+rocketmq:
+  name-server: 100.113.176.73:9876

@@ -1,0 +1,6 @@
+com\example\seckill\search\entity\GoodsDoc.class
+com\example\seckill\search\repository\GoodsRepository.class
+com\example\seckill\search\controller\SearchTestController.class
+com\example\seckill\search\SearchApplication.class
+com\example\seckill\search\service\SearchService.class
+com\example\seckill\search\feign\GoodsFeignClient.class

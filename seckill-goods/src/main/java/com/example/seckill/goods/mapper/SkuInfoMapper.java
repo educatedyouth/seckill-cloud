@@ -1,7 +1,7 @@
 package com.example.seckill.goods.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.example.seckill.goods.entity.SkuInfo;
+import com.example.seckill.common.entity.SkuInfo;
 import org.apache.ibatis.annotations.Mapper;
 
 @Mapper
