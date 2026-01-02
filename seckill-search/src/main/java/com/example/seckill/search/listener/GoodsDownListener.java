@@ -17,25 +17,21 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 @RocketMQMessageListener(topic = "goods-down-topic", consumerGroup = "search-down-consumer-group")
-public class GoodsDownListener implements RocketMQListener<Long> {
+public class GoodsDownListener implements RocketMQListener<String> {
 
     @Autowired
     private GoodsRepository goodsRepository;
 
     @Override
-    public void onMessage(Long spuId) {
-        log.info("MQ-Consumer: 收到商品下架消息，准备从 ES 删除，spuId={}", spuId);
+    public void onMessage(String spuIdStr) { // ✅ 参数改为 String
+        log.info("MQ-Consumer: 收到商品下架消息，准备从 ES 删除，spuId={}", spuIdStr);
 
         try {
-
-            // 核心动作：从 ES 物理删除
-            // deleteById 是 ElasticsearchRepository 自带的方法，若 ID 不存在也不会报错（幂等）
+            Long spuId = Long.valueOf(spuIdStr);
             goodsRepository.deleteById(spuId);
-
-            log.info("MQ-Consumer: 商品从 ES 删除成功 (或原本就不存在)，spuId={}", spuId);
+            log.info("MQ-Consumer: 商品从 ES 删除成功，spuId={}", spuId);
         } catch (Exception e) {
-            log.error("MQ-Consumer: 下架操作失败，spuId={}, error={}", spuId, e.getMessage());
-            // 抛出异常，触发 RocketMQ 重试。下架失败必须重试，否则会出现“僵尸商品”
+            log.error("MQ-Consumer: 下架操作失败，spuId={}, error={}", spuIdStr, e.getMessage());
             throw e;
         }
     }

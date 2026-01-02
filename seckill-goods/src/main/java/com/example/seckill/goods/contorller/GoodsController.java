@@ -121,4 +121,23 @@ public class GoodsController {
         goodsService.removeGoods(spuId);
         return Result.success("删除成功");
     }
+
+
+    @DeleteMapping("/deleteOne/{spuId}")
+    public Result<String> deleteOne(@PathVariable Long spuId) {
+        goodsService.deleteOneBySpuID(spuId);
+        return Result.success("删除成功");
+    }
+
+    /**
+     * 【新增】全量同步接口 (后门接口)
+     * POST /goods/sync/all
+     */
+    @PostMapping("/sync/all")
+    public Result<String> syncAll() {
+        long start = System.currentTimeMillis();
+        goodsService.syncAllGoods();
+        long end = System.currentTimeMillis();
+        return Result.success("全量同步任务已提交，耗时: " + (end - start) + "ms");
+    }
 }

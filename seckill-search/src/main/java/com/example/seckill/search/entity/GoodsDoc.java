@@ -1,11 +1,10 @@
 package com.example.seckill.search.entity;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.Data;
 import org.springframework.data.annotation.Id;
-import org.springframework.data.elasticsearch.annotations.DateFormat;
-import org.springframework.data.elasticsearch.annotations.Document;
-import org.springframework.data.elasticsearch.annotations.Field;
-import org.springframework.data.elasticsearch.annotations.FieldType;
+import org.springframework.data.elasticsearch.annotations.*;
 
 import java.math.BigDecimal;
 import java.util.Date;
@@ -20,6 +19,8 @@ import java.util.Date;
  */
 @Data
 @Document(indexName = "goods", createIndex = true)
+// 2. 【核心】引用我们在 resources 下写的配置文件
+@Setting(settingPath = "/es-settings.json")
 public class GoodsDoc {
 
     /**
@@ -27,6 +28,7 @@ public class GoodsDoc {
      * 对应 ES 的 _id
      */
     @Id
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
 
     /**
@@ -35,14 +37,15 @@ public class GoodsDoc {
      * 分词器：ik_max_word (最大粒度分词，适合搜索)
      * 搜索分词器：ik_smart (智能分词，适合搜索词匹配)
      */
-    @Field(type = FieldType.Text, analyzer = "ik_max_word", searchAnalyzer = "ik_smart")
+    // 3. 【核心】修改分词器为我们自定义的 my_smart_analyzer
+    // searchAnalyzer 也指定一致，保证搜 "苹果" 和存 "苹果" 的逻辑一样
+    @Field(type = FieldType.Text, analyzer = "my_smart_analyzer", searchAnalyzer = "my_smart_analyzer")
     private String title;
-
     /**
      * 副标题/卖点
      * 类型：Text (需要分词)
      */
-    @Field(type = FieldType.Text, analyzer = "ik_max_word", searchAnalyzer = "ik_smart")
+    @Field(type = FieldType.Text, analyzer = "my_smart_analyzer", searchAnalyzer = "my_smart_analyzer")
     private String subTitle;
 
     /**

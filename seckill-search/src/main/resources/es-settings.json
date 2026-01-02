@@ -1,0 +1,26 @@
+{
+  "index": {
+    "analysis": {
+      "filter": {
+        "my_synonym_filter": {
+          "type": "synonym_graph",
+          "synonyms": [
+            "iphone, 苹果, apple",
+            "mate60, 遥遥领先",
+            "iphone17, iphone 17"
+          ]
+        }
+      },
+      "analyzer": {
+        "my_smart_analyzer": {
+          "type": "custom",
+          "tokenizer": "ik_max_word",
+          "filter": [
+            "lowercase",
+            "my_synonym_filter"
+          ]
+        }
+      }
+    }
+  }
+}

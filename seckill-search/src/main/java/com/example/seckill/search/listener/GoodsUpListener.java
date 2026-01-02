@@ -16,18 +16,19 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 @RocketMQMessageListener(topic = "goods-up-topic", consumerGroup = "search-consumer-group")
-public class GoodsUpListener implements RocketMQListener<Long> {
+public class GoodsUpListener implements RocketMQListener<String> {
 
     @Autowired
     private SearchService searchService;
 
     @Override
-    public void onMessage(Long spuId) {
-        log.info("MQ-Consumer: 收到商品上架消息，spuId={}", spuId);
+    public void onMessage(String spuIdStr) { // ✅ 参数改为 String
+        log.info("MQ-Consumer: 收到商品上架消息，spuId={}", spuIdStr);
 
-        // 鲁棒性设计：异常重试
-        // RocketMQ 默认机制：如果这里抛出异常，MQ 会进行重试 (1s, 5s, 10s...)，直到成功或进入死信队列。
         try {
+            // 手动转换类型
+            Long spuId = Long.valueOf(spuIdStr);
+
             boolean success = searchService.syncUp(spuId);
             if (!success) {
                 log.warn("同步逻辑返回 false，主动抛出异常以触发 MQ 重试，spuId={}", spuId);
@@ -35,8 +36,8 @@ public class GoodsUpListener implements RocketMQListener<Long> {
             }
             log.info("MQ-Consumer: 商品同步 ES 成功，spuId={}", spuId);
         } catch (Exception e) {
-            log.error("MQ-Consumer: 消费失败，正在重试... spuId={}, error={}", spuId, e.getMessage());
-            throw e; // 关键：必须抛出异常，RocketMQ 才知道消费失败了
+            log.error("MQ-Consumer: 消费失败，正在重试... spuId={}, error={}", spuIdStr, e.getMessage());
+            throw e;
         }
     }
 }

@@ -26,4 +26,12 @@ public interface GoodsService extends IService<SpuInfo> {
      * 级联删除商品 (SPU + SKU + Images + Attrs)
      */
     void removeGoods(Long spuId);
+
+    void deleteOneBySpuID(Long spuID);
+
+    /**
+     * 【新增】全量同步商品到 ES
+     * 逻辑：查询所有 SPU ID，循环发送 MQ 上架消息
+     */
+    void syncAllGoods();
 }

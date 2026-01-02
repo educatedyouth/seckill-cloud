@@ -21,7 +21,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import java.util.*;
 import java.util.stream.Collectors;
 @Slf4j // 【新增】添加日志注解
@@ -44,6 +45,13 @@ public class GoodsServiceImpl extends ServiceImpl<SpuInfoMapper, SpuInfo> implem
 
     @Value("${app.rocketmq.goods-down-topic}")
     private String goodsDownTopic;
+
+    @Override
+    public void deleteOneBySpuID(Long spuID){
+        String spuIdStr = String.valueOf(spuID);
+        rocketMQTemplate.syncSend(goodsDownTopic, MessageBuilder.withPayload(spuIdStr).build());
+    }
+
     @Transactional(rollbackFor = Exception.class) // 【关键】开启事务，任何一步失败全部回滚
     @Override
     public void saveGoods(SpuSaveDTO dto) {
@@ -113,18 +121,17 @@ public class GoodsServiceImpl extends ServiceImpl<SpuInfoMapper, SpuInfo> implem
                 }
             }
         }
-        // 【核心改造】发送上架消息
-        // 1. 为什么只发 ID？ -> 极简传输，减少网络带宽，保证消息体小，吞吐量大。消费者拿到 ID 再反查，也能保证数据最终一致性。
-        // 2. 为什么用 syncSend？ -> 必须确保消息到了 Broker 才能算完，否则数据存了库但搜不到，属于线上事故。
-        try {
-            rocketMQTemplate.syncSend(goodsUpTopic, MessageBuilder.withPayload(spuId).build());
-            log.info(">>> 商品上架消息发送成功，spuId: {}", spuId);
-        } catch (Exception e) {
-            // 严谨处理：这里如果发消息失败，是否要回滚数据库？
-            // 策略 A (强一致)：抛出异常，回滚数据库，提示用户“网络抖动，请重试”。(我们选这个，保证数据一致)
-            log.error(">>> 商品上架消息发送失败，准备回滚，spuId: {}", spuInfo.getId(), e);
-            throw new RuntimeException("商品上架失败：消息队列连接异常");
-        }
+        // 【核心修正】事务提交成功后，再发送 MQ 消息
+        // 防止“数据库回滚但消息已发出”导致的 ES 数据不一致
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                // 1. 转为 String 发送
+                String spuIdStr = String.valueOf(spuId);
+                rocketMQTemplate.syncSend(goodsUpTopic, MessageBuilder.withPayload(spuIdStr).build());
+                log.info(">>> [事务提交后] 商品上架消息发送成功，spuId: {}", spuId);
+            }
+        });
     }
     @Override
     public GoodsDetailVO getGoodsDetail(Long spuId) {
@@ -276,6 +283,23 @@ public class GoodsServiceImpl extends ServiceImpl<SpuInfoMapper, SpuInfo> implem
             attrDel.in(SkuSaleAttrValue::getSkuId, idsToDelete);
             skuSaleAttrValueMapper.delete(attrDel);
         }
+        // 3. 【核心补充】发送同步消息 (修改 = 重新上架/覆盖)
+        // 只有当数据库事务完全提交后，才通知 ES 更新，防止查到旧数据
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                try {
+                    String spuIdStr = String.valueOf(spuId);
+                    // 发送到 "上架" Topic，ES 消费者收到后会重新拉取最新数据并覆盖写入
+                    rocketMQTemplate.syncSend(goodsUpTopic, MessageBuilder.withPayload(spuIdStr).build());
+                    log.info(">>> [事务提交后] 商品修改同步消息发送成功，spuId: {}", spuId);
+                } catch (Exception e) {
+                    log.error(">>> 商品修改同步消息发送失败，spuId: {}", spuId, e);
+                    // 注意：这里是在事务提交后执行的，即使发消息失败，数据库修改也已经生效了。
+                    // 生产环境通常会配合本地消息表或重试机制，这里暂时打印错误日志。
+                }
+            }
+        });
     }
 
     // 辅助方法：更新 SKU 的附属信息 (先删后插)
@@ -314,12 +338,32 @@ public class GoodsServiceImpl extends ServiceImpl<SpuInfoMapper, SpuInfo> implem
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void updateStatus(Long spuId, Integer status) {
+        // 1. 修改数据库状态
         SpuInfo spuInfo = new SpuInfo();
         spuInfo.setId(spuId);
         spuInfo.setPublishStatus(status);
         spuInfo.setUpdateTime(new Date());
         this.baseMapper.updateById(spuInfo);
+
+        // 2. 发送 MQ 消息 (根据状态决定发上架还是下架)
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                String spuIdStr = String.valueOf(spuId);
+
+                if (status == 1) {
+                    // === 上架操作 ===
+                    rocketMQTemplate.syncSend(goodsUpTopic, MessageBuilder.withPayload(spuIdStr).build());
+                    log.info(">>> [事务提交后] 商品状态更新-上架消息发送成功，spuId: {}", spuId);
+                } else {
+                    // === 下架操作 (0 或其他非1状态) ===
+                    rocketMQTemplate.syncSend(goodsDownTopic, MessageBuilder.withPayload(spuIdStr).build());
+                    log.info(">>> [事务提交后] 商品状态更新-下架消息发送成功，spuId: {}", spuId);
+                }
+            }
+        });
     }
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -351,13 +395,48 @@ public class GoodsServiceImpl extends ServiceImpl<SpuInfoMapper, SpuInfo> implem
 
         // 5. 最后删除 SPU 主表信息 (pms_spu_info)
         this.removeById(spuId);
-        // 【核心改造】发送下架消息
-        try {
-            rocketMQTemplate.syncSend(goodsDownTopic, MessageBuilder.withPayload(spuId).build());
-            log.info(">>> 商品下架消息发送成功，spuId: {}", spuId);
-        } catch (Exception e) {
-            log.error(">>> 商品下架消息发送失败，准备回滚，spuId: {}", spuId, e);
-            throw new RuntimeException("商品下架失败：消息队列连接异常");
+        // 【核心修正】事务提交成功后，再发送 MQ 消息
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                // 1. 转为 String 发送
+                String spuIdStr = String.valueOf(spuId);
+                rocketMQTemplate.syncSend(goodsDownTopic, MessageBuilder.withPayload(spuIdStr).build());
+                log.info(">>> [事务提交后] 商品下架消息发送成功，spuId: {}", spuId);
+            }
+        });
+    }
+    @Override
+    public void syncAllGoods() {
+        // 1. 查询所有商品的 ID (只查主键，性能极高)
+        // selectObjs 默认返回第一列(id)
+        List<Object> idList = this.baseMapper.selectObjs(
+                new LambdaQueryWrapper<SpuInfo>().select(SpuInfo::getId)
+        );
+
+        if (idList == null || idList.isEmpty()) {
+            log.warn(">>> 全量同步中止：数据库中没有商品");
+            return;
         }
+
+        log.info(">>> 开始执行全量同步，共扫描到 {} 个商品", idList.size());
+
+        // 2. 循环发送 MQ 消息
+        // 建议：如果数据量达到十万级，可以考虑使用线程池异步发送，或者批量发送
+        // 但对于目前的量级，循环同步发送最稳健
+        int successCount = 0;
+        for (Object idObj : idList) {
+            Long spuId = (Long) idObj;
+            try {
+                // 复用之前的上架逻辑：转为 String 发送
+                String spuIdStr = String.valueOf(spuId);
+                rocketMQTemplate.syncSend(goodsUpTopic, MessageBuilder.withPayload(spuIdStr).build());
+                successCount++;
+            } catch (Exception e) {
+                log.error(">>> 全量同步-发送消息失败，spuId: {}", spuId, e);
+            }
+        }
+
+        log.info(">>> 全量同步消息发送完毕，成功发送: {}/{}", successCount, idList.size());
     }
 }
