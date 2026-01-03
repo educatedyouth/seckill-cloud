@@ -1,7 +1,6 @@
 package com.example.seckill.search.service;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
-import co.elastic.clients.elasticsearch._types.KnnQuery; // 【新增】KNN 查询对象
 import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.Operator;
@@ -24,11 +23,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.Collections;
+import java.util.*;
 import java.math.BigDecimal;
-import java.util.Comparator;
-import java.util.List;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -48,10 +44,10 @@ public class SearchService {
     // AI 服务
     @Autowired
     private LlmService llmService;
+
     /**
-     * 上架商品同步 (MySQL -> ES)
-     * @param spuId 商品ID
-     * @return 是否成功
+     * 阶段一：基础同步 (Fast)
+     * 仅负责将 MySQL 数据搬运到 ES，不进行任何 AI 调用
      */
     public boolean syncUp(Long spuId) {
         // 1. 远程调用获取商品详情
@@ -65,51 +61,62 @@ public class SearchService {
         SpuInfo spuInfo = vo.getSpuInfo();
         List<GoodsDetailVO.SkuItem> skuList = vo.getSkuList();
 
-        // 2. 数据转换 (Data Mapping)
+        // 2. 数据转换 (只做基础字段)
         GoodsDoc doc = new GoodsDoc();
-        // 2.1 基础信息拷贝
         doc.setId(spuInfo.getId());
-        doc.setTitle(spuInfo.getSpuName()); // SPU名作为搜索标题
+        doc.setTitle(spuInfo.getSpuName());
         doc.setSubTitle(spuInfo.getSpuDescription());
         doc.setBrandId(spuInfo.getBrandId());
         doc.setCategoryId(spuInfo.getCategoryId());
         doc.setCreateTime(spuInfo.getCreateTime());
+        doc.setBrandName(""); // 暂空，后续聚合优化
+        doc.setCategoryName(""); // 暂空
 
-        // 为了后续聚合方便，这里暂时存个空字符串，或者你可以在 GoodsDetailVO 里补充 BrandName/CategoryName
-        // 这里的逻辑：如果有通过 Feign 拿到名字最好，如果没有，暂时置空，不影响核心搜索
-        doc.setBrandName("");
-        doc.setCategoryName("");
-
-        // 2.2 计算价格 (取所有 SKU 中的最低价)
-        // ✅ 修改为以下防御性代码 (Line 60-65 左右)
+        // 计算价格与销量
         if (skuList != null && !skuList.isEmpty()) {
             BigDecimal minPrice = skuList.stream()
                     .map(SkuInfo::getPrice)
-                    .filter(price -> price != null) // 【核心修复】过滤掉 null 价格
+                    .filter(Objects::nonNull)
                     .min(Comparator.naturalOrder())
                     .orElse(BigDecimal.ZERO);
             doc.setPrice(minPrice);
 
-            // 设置图片等逻辑保持不变
-            // 同时也建议加个判空，防止图片也是 null 导致后续报错
             String defaultImg = skuList.get(0).getSkuDefaultImg();
             doc.setImg(defaultImg != null ? defaultImg : "");
 
             long totalSale = skuList.stream()
-                    .mapToLong(sku -> sku.getSaleCount() == null ? 0L : sku.getSaleCount()) // 防御性处理销量 null
+                    .mapToLong(sku -> sku.getSaleCount() == null ? 0L : sku.getSaleCount())
                     .sum();
             doc.setSaleCount(totalSale);
         }
-        // ================== 【新增 AI 增强逻辑】 START ==================
-        // 放在组装完 doc 之后，save 之前。使用 try-catch 保证 AI 异常不影响上架
+
+        // 3. 写入 ES (此时没有 AI 关键词和向量，但已经可以被 ID 或 精确 Title 搜到了)
+        goodsRepository.save(doc);
+        log.info(">>> [阶段1] 基础数据同步完成：spuId={}", spuId);
+        return true;
+    }
+
+    /**
+     * 阶段二：AI 增强 (Slow)
+     * 异步调用，执行耗时的 LLM 和 Embedding
+     */
+    public void syncAiStrategy(Long spuId) {
+        // 1. 先从 ES 查询现有的文档 (避免再次调用 Feign，或者为了数据新鲜度也可以调 Feign，这里查 ES 即可)
+        // 注意：Optional 处理
+        GoodsDoc doc = goodsRepository.findById(spuId).orElse(null);
+        if (doc == null) {
+            log.warn(">>> [AI增强] 未找到商品文档，可能已被删除，停止增强 spuId={}", spuId);
+            return;
+        }
+
         try {
             long start = System.currentTimeMillis();
 
-            // A. 调用 DeepSeek 生成扩展关键词
+            // 2. 生成关键词
             List<String> aiKeywords = llmService.expandKeywords(doc.getTitle(), doc.getSubTitle());
             doc.setAiKeywords(aiKeywords);
 
-            // B. 调用 BGE-M3 生成向量
+            // 3. 生成向量
             // 拼接富文本：标题 + 简介 + 扩展关键词
             String richText = doc.getTitle() + " " + doc.getSubTitle() + " " + String.join(" ", aiKeywords);
             List<Float> vector = llmService.getVector(richText);
@@ -118,16 +125,14 @@ public class SearchService {
                 doc.setEmbeddingVector(vector);
             }
 
-            log.info(">>> [AI增强] SPU: {} | 耗时: {}ms | 关键词: {}", doc.getId(), (System.currentTimeMillis() - start), aiKeywords);
+            // 4. 更新 ES (这里是 Update 操作)
+            goodsRepository.save(doc);
+            log.info(">>> [阶段2] AI 增强完成 ({}ms) | spuId={}", (System.currentTimeMillis() - start), spuId);
+
         } catch (Exception e) {
-            log.error(">>> [AI增强] 失败，降级为普通索引，SPU: {}", doc.getId(), e);
-            // 这里吞掉异常，确保即使 AI 挂了，商品也能正常上架被搜到（只是不智能）
+            log.error(">>> [AI增强] 失败 spuId={}", spuId, e);
+            // AI 失败不回滚基础数据，保证商品依然在架
         }
-        // ================== 【新增 AI 增强逻辑】 END ==================
-        // 3. 写入 ES
-        goodsRepository.save(doc);
-        log.info("商品上架同步成功：spuId={}, title={}", spuId, doc.getTitle());
-        return true;
     }
     /**
      * 混合检索 (使用原生 Client 实现)
@@ -170,7 +175,7 @@ public class SearchService {
 
         // 3. 构建请求
         // 建议先把 minScore 调低或者去掉，方便调试，等数据多了再加
-        SearchRequest.Builder searchBuilder = new SearchRequest.Builder().index("goods").minScore(0.4d);
+        SearchRequest.Builder searchBuilder = new SearchRequest.Builder().index("goods").minScore(0.6d);
 
         // 注入文本查询
         searchBuilder.query(q -> q.bool(boolQueryBuilder.build()));

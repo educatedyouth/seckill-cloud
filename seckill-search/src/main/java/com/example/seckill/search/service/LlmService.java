@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cloud.context.config.annotation.RefreshScope; // 【关键】引入热更新注解
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -15,6 +16,7 @@ import java.util.*;
  */
 @Service
 @Slf4j
+@RefreshScope // 【核心】开启 Nacos 配置热更新支持
 public class LlmService {
 
     private final RestTemplate restTemplate = new RestTemplate();
@@ -29,32 +31,30 @@ public class LlmService {
     @Value("${llm.embed-model}")
     private String modelEmbed;
 
+    // 【核心】注入 Nacos 中的 Prompt 模板
+    // 冒号后面是默认值，防止 Nacos 没配时报错
+    @Value("${llm.prompt.expand-keywords:你是一个电商搜索优化专家。请根据以下商品信息，提取并生成关键词。商品标题：%s\n商品简介：%s}")
+    private String expandKeywordsPrompt;
+
     /**
      * 核心方法 1：扩充关键词
      * 使用 DeepSeek 推理能力，根据标题和简介生成同义词、场景词等
      */
     public List<String> expandKeywords(String title, String desc) {
-        // 1. Prompt Engineering
-        // 强制要求 JSON 格式或纯文本逗号分隔，这里使用纯文本逗号分隔更稳定
-        String prompt = String.format(
-                "你是一个电商搜索优化专家。请根据以下商品信息，提取并生成 5-10 个搜索关键词。\n" +
-                        "要求：\n" +
-                        "1. 包含核心词、同义词、竞品词、常见错别字、功能场景词。\n" +
-                        "2. 直接输出纯文本，用英文逗号分隔，不要包含任何解释、序号、前缀或后缀。\n" +
-                        "3. 不要输出 <think> 标签的内容。\n" +
-                        "\n" +
-                        "商品标题：%s\n" +
-                        "商品简介：%s",
-                title, desc
-        );
+        // 1. Prompt Engineering (Dynamic)
+        // 使用配置中心的模板进行格式化
+        String prompt = String.format(expandKeywordsPrompt, title, desc);
+
+        // 调试日志：打印当前使用的 Prompt，方便验证热更新是否生效
+        log.info(">>> [AI] 当前 Prompt 模板长度: {}, 内容片段: {}", expandKeywordsPrompt.length(), expandKeywordsPrompt.substring(0, Math.min(20, expandKeywordsPrompt.length())) + "...");
 
         Map<String, Object> request = new HashMap<>();
         request.put("model", modelChat);
         request.put("prompt", prompt);
         request.put("stream", false);
-        // 降低温度，让结果更确定
+
         Map<String, Object> options = new HashMap<>();
-        options.put("temperature", 0.5);
+        options.put("temperature", 0.5); // 温度保持 0.5 较为稳定
         request.put("options", options);
 
         try {
@@ -71,7 +71,6 @@ public class LlmService {
             if (responseText.contains("</think>")) {
                 responseText = responseText.substring(responseText.indexOf("</think>") + 8);
             }
-            // 再次兜底清洗
             responseText = responseText.replaceAll("<think>[\\s\\S]*?</think>", "").trim();
             // 标点归一化
             responseText = responseText.replace("\n", ",").replace("，", ",").replace("。", "");
@@ -80,7 +79,7 @@ public class LlmService {
             List<String> keywords = new ArrayList<>();
             for (String s : splits) {
                 String k = s.trim();
-                if (k.length() > 1) { // 过滤无效短词
+                if (k.length() > 1) {
                     keywords.add(k);
                 }
             }
@@ -90,14 +89,12 @@ public class LlmService {
 
         } catch (Exception e) {
             log.error(">>> [AI] 关键词扩充失败: {}", e.getMessage());
-            return new ArrayList<>(); // 降级策略：返回空列表
+            return new ArrayList<>();
         }
     }
 
     /**
-     * 核心方法 2：获取文本向量
-     * 使用 bge-m3 模型将文本转为向量
-     * 注意：严格返回 List<Float>
+     * 核心方法 2：获取文本向量 (保持不变)
      */
     public List<Float> getVector(String text) {
         if (text == null || text.trim().isEmpty()) {
@@ -118,12 +115,10 @@ public class LlmService {
             List<Float> vector = new ArrayList<>();
             if (embeddingNode.isArray()) {
                 for (JsonNode node : embeddingNode) {
-                    // 强转为 Float，节省存储空间并匹配 ES dense_vector 类型
                     vector.add((float) node.asDouble());
                 }
             }
 
-            // 简单校验维度 (BGE-M3 应该是 1024)
             if (!vector.isEmpty() && vector.size() != 1024) {
                 log.warn(">>> [AI] 向量维度异常，期望 1024，实际 {}", vector.size());
             }
