@@ -37,3 +37,10 @@ app:
     topic: goods-up-topic
 rocketmq:
   name-server: 100.113.176.73:9876
+# Task 4.1 AI Infrastructure
+llm:
+  host: http://localhost:11434
+  # 聊天模型 (用于关键词扩充)
+  chat-model: deepseek-r1:14b
+  # 向量模型 (用于生成向量)
+  embed-model: bge-m3

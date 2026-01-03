@@ -1,12 +1,14 @@
 package com.example.seckill.search.controller;
 
 import com.example.seckill.common.result.Result;
+import com.example.seckill.search.service.LlmService;
 import com.example.seckill.search.service.SearchService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/search/test")
@@ -23,5 +25,25 @@ public class SearchTestController {
     public Result<String> testUp(@PathVariable Long spuId) {
         boolean success = searchService.syncUp(spuId);
         return success ? Result.success("同步成功") : Result.error("同步失败");
+    }
+
+    @Autowired
+    private LlmService llmService;
+
+    @GetMapping("/ai/infra")
+    public Result<Map<String, Object>> testAiInfra(@RequestParam String text) {
+        Map<String, Object> result = new HashMap<>();
+
+        // 1. 测试扩充
+        List<String> keywords = llmService.expandKeywords(text, "测试商品描述");
+        result.put("keywords", keywords);
+
+        // 2. 测试向量
+        List<Float> vector = llmService.getVector(text);
+        result.put("vector_size", vector.size()); // 应该是 1024
+        result.put("vector_sample", vector.subList(0, Math.min(5, vector.size()))); // 看前5位
+        result.put("vector_type", vector.get(0).getClass().getSimpleName()); // 确认是 Float
+
+        return Result.success(result);
     }
 }

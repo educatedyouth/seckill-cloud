@@ -1,4 +1,4 @@
-package com.example.seckill.goods.contorller;
+package com.example.seckill.goods.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.example.seckill.common.result.Result;
