@@ -34,4 +34,12 @@ public interface GoodsService extends IService<SpuInfo> {
      * 逻辑：查询所有 SPU ID，循环发送 MQ 上架消息
      */
     void syncAllGoods();
+
+    /**
+     * 数据库直接扣减库存（受 Seata 分布式事务管理）
+     * @param skuId SKU ID
+     * @param count 数量
+     * @return 是否成功
+     */
+    boolean reduceStockDB(Long skuId, Integer count);
 }

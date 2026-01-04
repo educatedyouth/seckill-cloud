@@ -15,4 +15,8 @@ public class Order {
     private Integer goodsId;
     private Date createTime;
     private Integer status; // 0:未支付, 1:已支付, 2:已关闭
+    /**
+     * 订单类型：0-普通订单，1-秒杀订单
+     */
+    private Integer orderType;
 }

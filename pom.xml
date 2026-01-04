@@ -20,6 +20,7 @@
         <module>seckill-auth</module>
         <module>seckill-thirdparty</module>
         <module>seckill-search</module>
+        <module>seckill-cart</module>
     </modules>
 
     <properties>

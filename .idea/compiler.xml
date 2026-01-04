@@ -18,6 +18,7 @@
         </processorPath>
         <module name="seckill-order" />
         <module name="seckill-gateway" />
+        <module name="seckill-cart" />
         <module name="seckill-common" />
         <module name="seckill-goods" />
         <module name="seckill-user" />

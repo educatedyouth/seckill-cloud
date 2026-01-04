@@ -439,4 +439,16 @@ public class GoodsServiceImpl extends ServiceImpl<SpuInfoMapper, SpuInfo> implem
 
         log.info(">>> 全量同步消息发送完毕，成功发送: {}/{}", successCount, idList.size());
     }
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean reduceStockDB(Long skuId, Integer count) {
+        // 直接执行 Update 语句，利用数据库返回值判断是否扣减成功
+        int rows = skuInfoMapper.reduceStock(skuId, count);
+        if (rows > 0) {
+            return true;
+        } else {
+            // 库存不足，抛出异常触发布式事务回滚
+            throw new RuntimeException("商品库存不足，SKU:" + skuId);
+        }
+    }
 }
