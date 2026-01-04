@@ -2,6 +2,7 @@ package com.example.seckill.order.consumer;
 
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.example.seckill.common.dto.SeckillMsgDTO;
 import com.example.seckill.common.entity.Order;
 import com.example.seckill.order.mapper.OrderMapper;
@@ -129,9 +130,12 @@ public class SeckillConsumer {
 
                                 // 2. 遍历每一条订单，逐个关闭
                                 for (Order order : orders) {
-                                    // 修改状态 0 -> 2
-                                    order.setStatus(2);
-                                    int rows = orderMapper.updateById(order);
+                                    // 使用 MyBatis-Plus 的 UpdateWrapper
+                                    UpdateWrapper<Order> update = new UpdateWrapper<>();
+                                    update.set("status", 2);
+                                    update.eq("id", order.getId());
+                                    update.eq("status", 0); // 【核心】只有当前是0时才允许改成2
+                                    int rows = orderMapper.update(null, update);
 
                                     // 3. 只有当前这条订单更新成功，才回补 1 个库存
                                     if (rows > 0) {

@@ -75,8 +75,7 @@ public class AuthController {
         // 2. 密码加密 (核心安全步骤)
         // 注意：我们不能把明文密码存入数据库，必须在这里加密后再发给 User 服务
         String rawPassword = registerVo.getPassword();
-        String encodedPassword = passwordEncoder.encode(rawPassword);
-        registerVo.setPassword(encodedPassword);
+        registerVo.setPassword(rawPassword);
 
         // 3. 远程调用 User 服务写入数据
         return userFeignClient.register(registerVo);
