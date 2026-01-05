@@ -1,4 +1,4 @@
-package com.example.seckill.cart.vo;
+package com.example.seckill.common.vo;
 
 import lombok.Data;
 import java.math.BigDecimal;

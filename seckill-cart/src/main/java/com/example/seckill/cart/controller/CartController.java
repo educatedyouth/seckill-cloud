@@ -1,7 +1,7 @@
 package com.example.seckill.cart.controller;
 
 import com.example.seckill.cart.service.CartService;
-import com.example.seckill.cart.vo.CartItem;
+import com.example.seckill.common.vo.CartItem;
 import com.example.seckill.common.context.UserContext;
 import com.example.seckill.common.result.Result;
 import org.springframework.beans.factory.annotation.Autowired;

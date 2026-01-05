@@ -1,6 +1,6 @@
 package com.example.seckill.cart.service;
 
-import com.example.seckill.cart.vo.CartItem;
+import com.example.seckill.common.vo.CartItem;
 import java.util.List;
 
 public interface CartService {

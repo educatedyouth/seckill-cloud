@@ -1,9 +1,12 @@
+D:\JavaTest\seckill-cloud\seckill-common\src\main\java\com\example\seckill\common\vo\CartItem.java
 D:\JavaTest\seckill-cloud\seckill-common\src\main\java\com\example\seckill\common\entity\SkuSaleAttrValue.java
 D:\JavaTest\seckill-cloud\seckill-common\src\main\java\com\example\seckill\common\dto\SeckillMsgDTO.java
 D:\JavaTest\seckill-cloud\seckill-common\src\main\java\com\example\seckill\common\entity\Order.java
 D:\JavaTest\seckill-cloud\seckill-common\src\main\java\com\example\seckill\common\entity\SpuInfo.java
 D:\JavaTest\seckill-cloud\seckill-common\src\main\java\com\example\seckill\common\utils\RedisUtil.java
 D:\JavaTest\seckill-cloud\seckill-common\src\main\java\com\example\seckill\common\entity\Goods.java
+D:\JavaTest\seckill-cloud\seckill-common\src\main\java\com\example\seckill\common\entity\OrderTrade.java
+D:\JavaTest\seckill-cloud\seckill-common\src\main\java\com\example\seckill\common\config\GlobalJsonConfig.java
 D:\JavaTest\seckill-cloud\seckill-common\src\main\java\com\example\seckill\common\vo\GoodsDetailVO.java
 D:\JavaTest\seckill-cloud\seckill-common\src\main\java\com\example\seckill\common\entity\SkuInfo.java
 D:\JavaTest\seckill-cloud\seckill-common\src\main\java\com\example\seckill\common\context\UserContext.java

@@ -1,36 +1,51 @@
 server:
-  port: 8021 # 用户服务占用 8010 端口
+  port: 8021
 
 spring:
   application:
-    name: seckill-goods # 【重要】服务名，以后别人找你就靠这个名字
-
+    name: seckill-goods
   cloud:
     nacos:
       discovery:
-        server-addr: 100.113.176.73:8848 # Nacos 地址 (Linux IP)
+        server-addr: 100.113.176.73:8848
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    # 👇 【关键修改】将库名修正为 seckill_goods
     url: jdbc:mysql://100.113.176.73:3306/seckill_goods?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
     username: root
-    password: root # 请确认密码是否正确
+    password: root
 
 mybatis-plus:
   configuration:
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl # 打印 SQL 日志
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
 app:
   rocketmq:
-    # 指向你的 Linux 服务器 NameServer
     namesrv-addr: 100.113.176.73:9876
     producer-group: goods-producer-group
-    # 定义 Topic，方便后续运维管理
     goods-up-topic: goods-up-topic
     goods-down-topic: goods-down-topic
-# 【新增】这是给官方 Starter 自动装配用的 (必须补上这几行！)
+
 rocketmq:
   name-server: 100.113.176.73:9876
   producer:
     group: goods-producer-group
-    # 发送超时时间 (可选，建议设长一点防止网络抖动)
     send-message-timeout: 3000
+
+# ==========================================
+# 【新增】Seata 核心配置 (解决 deprecated 报错)
+# ==========================================
+seata:
+  enabled: true
+  # 事务分组 (必须与代码中 @GlobalTransactional 注解默认的一致)
+  tx-service-group: default_tx_group
+  service:
+    vgroup-mapping:
+      # 映射规则：将 default_tx_group 映射到名为 'default' 的 Seata Server 集群
+      default_tx_group: default
+  # 注册中心配置 (告诉微服务去 Nacos 找 Seata Server)
+  registry:
+    type: nacos
+    nacos:
+      application: seata-server
+      server-addr: 100.113.176.73:8848
+      group: SEATA_GROUP

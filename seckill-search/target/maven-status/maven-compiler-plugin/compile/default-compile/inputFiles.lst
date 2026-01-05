@@ -2,5 +2,13 @@ D:\JavaTest\seckill-cloud\seckill-search\src\main\java\com\example\seckill\searc
 D:\JavaTest\seckill-cloud\seckill-search\src\main\java\com\example\seckill\search\service\SearchService.java
 D:\JavaTest\seckill-cloud\seckill-search\src\main\java\com\example\seckill\search\repository\GoodsRepository.java
 D:\JavaTest\seckill-cloud\seckill-search\src\main\java\com\example\seckill\search\SearchApplication.java
+D:\JavaTest\seckill-cloud\seckill-search\src\main\java\com\example\seckill\search\controller\SearchController.java
+D:\JavaTest\seckill-cloud\seckill-search\src\main\java\com\example\seckill\search\dto\SearchParamDTO.java
+D:\JavaTest\seckill-cloud\seckill-search\src\main\java\com\example\seckill\search\service\LlmService.java
+D:\JavaTest\seckill-cloud\seckill-search\src\main\java\com\example\seckill\search\controller\SearchDemoController.java
 D:\JavaTest\seckill-cloud\seckill-search\src\main\java\com\example\seckill\search\entity\GoodsDoc.java
 D:\JavaTest\seckill-cloud\seckill-search\src\main\java\com\example\seckill\search\controller\SearchTestController.java
+D:\JavaTest\seckill-cloud\seckill-search\src\main\java\com\example\seckill\search\listener\GoodsAiListener.java
+D:\JavaTest\seckill-cloud\seckill-search\src\main\java\com\example\seckill\search\listener\GoodsUpListener.java
+D:\JavaTest\seckill-cloud\seckill-search\src\main\java\com\example\seckill\search\listener\GoodsDownListener.java
+D:\JavaTest\seckill-cloud\seckill-search\src\main\java\com\example\seckill\search\vo\SearchResultVO.java

@@ -3,7 +3,7 @@ package com.example.seckill.cart.service.impl;
 import com.alibaba.fastjson.JSON;
 import com.example.seckill.cart.feign.GoodsFeignClient;
 import com.example.seckill.cart.service.CartService;
-import com.example.seckill.cart.vo.CartItem;
+import com.example.seckill.common.vo.CartItem;
 import com.example.seckill.common.entity.SkuInfo;
 import com.example.seckill.common.result.Result;
 import lombok.extern.slf4j.Slf4j;
