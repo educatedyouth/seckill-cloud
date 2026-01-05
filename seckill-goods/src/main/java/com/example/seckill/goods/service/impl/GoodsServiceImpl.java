@@ -78,6 +78,7 @@ public class GoodsServiceImpl extends ServiceImpl<SpuInfoMapper, SpuInfo> implem
                 skuInfo.setCategoryId(spuInfo.getCategoryId());
                 skuInfo.setBrandId(spuInfo.getBrandId());
                 skuInfo.setSaleCount(0L);
+                skuInfo.setSkuTitle(spuInfo.getSpuName() + " 规格：" + skuInfo.getSkuName());
                 // 设置默认图 (如果前端传了 defaultImg 就用，没传就拿图片列表第一张)
                 String defaultImg = skuDTO.getDefaultImg();
                 if (defaultImg == null && skuDTO.getImages() != null && !skuDTO.getImages().isEmpty()) {

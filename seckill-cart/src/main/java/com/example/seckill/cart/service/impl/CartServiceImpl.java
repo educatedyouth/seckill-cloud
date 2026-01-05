@@ -59,7 +59,13 @@ public class CartServiceImpl implements CartService {
             cartItem.setCount(count);
             cartItem.setStock(skuInfo.getStock()); // 【新增】写入 Redis 时记录当时的库存
         }
-
+        // 【新增】远程查询 SKU 规格属性
+        Result<List<String>> attrResult = goodsFeignClient.getSkuSaleAttrValues(skuId);
+        if (attrResult != null && attrResult.getData() != null) {
+            cartItem.setSkuAttr(attrResult.getData());
+        } else {
+            cartItem.setSkuAttr(new java.util.ArrayList<>()); // 防止 null
+        }
         // 5. 【核心防超卖】二次校验：(购物车现有 + 本次新增) 是否超过当前真实库存
         if (cartItem.getCount() > skuInfo.getStock()) {
             // 抛出异常，前端 request.js 会捕获并弹出 Message.error
@@ -94,5 +100,21 @@ public class CartServiceImpl implements CartService {
         BoundHashOperations<String, Object, Object> cartOps = getCartOps(userId);
         // Redis Hash Delete 命令
         cartOps.delete(skuId.toString());
+    }
+    @Override
+    public void mergeCart(Long userId, List<CartItem> cartItems) {
+        if (cartItems == null || cartItems.isEmpty()) {
+            return;
+        }
+        // 遍历离线购物车的所有商品，复用 addToCart 逻辑
+        // 这样可以自动处理：库存校验、价格更新、数量累加
+        for (CartItem item : cartItems) {
+            try {
+                this.addToCart(userId, item.getSkuId(), item.getCount());
+            } catch (Exception e) {
+                // 如果某个商品合并失败（比如没库存了），记录日志，但不阻断其他商品合并
+                log.error("合并购物车商品失败: skuId={}, msg={}", item.getSkuId(), e.getMessage());
+            }
+        }
     }
 }

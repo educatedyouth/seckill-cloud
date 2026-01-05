@@ -3,10 +3,9 @@ package com.example.seckill.goods.controller;
 import com.example.seckill.common.result.Result;
 import com.example.seckill.goods.service.GoodsService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 /**
  * SKU 核心操作接口
@@ -44,5 +43,29 @@ public class SkuController {
             return Result.error("商品不存在");
         }
         return Result.success(skuInfo);
+    }
+
+    // 注入属性 Mapper
+    @Autowired
+    private com.example.seckill.goods.mapper.SkuSaleAttrValueMapper skuSaleAttrValueMapper;
+
+    /**
+     * 获取 SKU 的销售属性文本列表
+     * 例如：["颜色: 红色", "内存: 128G"]
+     */
+    @RequestMapping("/saleAttr/{skuId}")
+    public Result<List<String>> getSkuSaleAttrValues(@PathVariable("skuId") Long skuId) {
+        // 查库：select * from pms_sku_sale_attr_value where sku_id = ?
+        List<com.example.seckill.common.entity.SkuSaleAttrValue> attrValues = skuSaleAttrValueMapper.selectList(
+                new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<com.example.seckill.common.entity.SkuSaleAttrValue>()
+                        .eq("sku_id", skuId)
+        );
+
+        // 转换：将实体列表转换为 "Key: Value" 格式的字符串列表
+        List<String> attrList = attrValues.stream()
+                .map(attr -> attr.getAttrName() + ": " + attr.getAttrValue())
+                .collect(java.util.stream.Collectors.toList());
+
+        return Result.success(attrList);
     }
 }

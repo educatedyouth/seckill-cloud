@@ -58,4 +58,15 @@ public class CartController {
         cartService.deleteItem(userId, skuId);
         return Result.success("删除成功");
     }
+
+    /**
+     * 合并购物车
+     * 触发时机：用户登录成功后
+     */
+    @PostMapping("/merge")
+    public Result<String> mergeCart(@RequestBody List<CartItem> cartItems) {
+        Long userId = UserContext.getUserId();
+        cartService.mergeCart(userId, cartItems);
+        return Result.success("合并成功");
+    }
 }

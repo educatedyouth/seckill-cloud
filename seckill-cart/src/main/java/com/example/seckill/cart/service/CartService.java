@@ -27,4 +27,10 @@ public interface CartService {
      * @param skuId 商品ID
      */
     void deleteItem(Long userId, Long skuId);
+    /**
+     * 合并购物车 (将离线购物车数据合并到在线购物车)
+     * @param userId 用户ID
+     * @param cartItems 离线购物车项列表
+     */
+    void mergeCart(Long userId, List<CartItem> cartItems);
 }
