@@ -1,9 +1,12 @@
 package com.example.seckill.goods.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.example.seckill.common.vo.CartItem;
 import com.example.seckill.goods.dto.SpuSaveDTO;
 import com.example.seckill.common.entity.SpuInfo;
 import com.example.seckill.common.vo.GoodsDetailVO;
+
+import java.util.List;
 
 // seckill-goods/src/main/java/com/example/seckill/goods/service/GoodsService.java
 public interface GoodsService extends IService<SpuInfo> {
@@ -42,4 +45,6 @@ public interface GoodsService extends IService<SpuInfo> {
      * @return 是否成功
      */
     boolean reduceStockDB(Long skuId, Integer count);
+
+    boolean reduceStockDBBatch(List<CartItem>CartItems);
 }

@@ -30,6 +30,8 @@ public class UserAddr implements Serializable {
 
     // 是否默认：0-否，1-是
     private Integer isDefault;
+    // 【新增】地址标签：家、公司、学校
+    private String label;
 
     private Date createTime;
     private Date updateTime;

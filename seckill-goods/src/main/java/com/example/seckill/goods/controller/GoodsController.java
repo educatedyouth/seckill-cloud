@@ -140,4 +140,6 @@ public class GoodsController {
         long end = System.currentTimeMillis();
         return Result.success("全量同步任务已提交，耗时: " + (end - start) + "ms");
     }
+
+
 }

@@ -7,6 +7,7 @@ import com.example.seckill.common.entity.SkuImages;
 import com.example.seckill.common.entity.SkuInfo;
 import com.example.seckill.common.entity.SkuSaleAttrValue;
 import com.example.seckill.common.entity.SpuInfo;
+import com.example.seckill.common.vo.CartItem;
 import com.example.seckill.goods.dto.SkuSaleAttrDTO;
 import com.example.seckill.goods.dto.SkuSaveDTO;
 import com.example.seckill.goods.dto.SpuSaveDTO;
@@ -451,5 +452,15 @@ public class GoodsServiceImpl extends ServiceImpl<SpuInfoMapper, SpuInfo> implem
             // 库存不足，抛出异常触发布式事务回滚
             throw new RuntimeException("商品库存不足，SKU:" + skuId);
         }
+    }
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean reduceStockDBBatch(List<CartItem>CartItems){
+        int rows = skuInfoMapper.reduceStockBatch(CartItems);
+        if (rows != CartItems.size()) {
+            // 有 SKU 扣减失败（库存不足或不存在）
+            throw new RuntimeException("批量扣减库存失败，存在库存不足的商品");
+        }
+        return true;
     }
 }

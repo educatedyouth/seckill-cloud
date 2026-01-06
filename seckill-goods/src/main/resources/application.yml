@@ -10,13 +10,17 @@ spring:
         server-addr: 100.113.176.73:8848
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://100.113.176.73:3306/seckill_goods?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+    url: jdbc:mysql://100.113.176.73:3306/seckill_goods?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowMultiQueries=true
     username: root
     password: root
 
 mybatis-plus:
   configuration:
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  # 【新增】指定 XML 映射文件的位置
+  # classpath: 代表 src/main/resources 目录
+  # mapper/*.xml 代表 mapper 目录下的所有 xml 文件
+  mapper-locations: classpath:mapper/*.xml
 
 app:
   rocketmq:

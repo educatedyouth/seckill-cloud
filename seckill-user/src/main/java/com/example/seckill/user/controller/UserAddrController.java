@@ -70,4 +70,16 @@ public class UserAddrController {
             return Result.error(e.getMessage());
         }
     }
+
+    /**
+     * 【新增】根据地址ID获取详细信息 (供订单服务远程调用)
+     */
+    @GetMapping("/info/{id}")
+    public Result<UserAddr> getUserAddrInfo(@PathVariable("id") Long id) {
+        UserAddr userAddr = userAddrService.getById(id);
+        if (userAddr == null) {
+            return Result.error("地址不存在");
+        }
+        return Result.success(userAddr);
+    }
 }

@@ -1,7 +1,9 @@
 package com.example.seckill.goods.controller;
 
 import com.example.seckill.common.result.Result;
+import com.example.seckill.common.vo.CartItem;
 import com.example.seckill.goods.service.GoodsService;
+import org.apache.ibatis.annotations.Param;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,6 +32,19 @@ public class SkuController {
             return Result.error("库存扣减失败");
         }
     }
+    /**
+     * 数据库批量扣减库存 (供订单服务 Feign 调用)
+     */
+    @PostMapping("/reduce/dbBatch")
+    Result<String> reduceStockDBBatch(@Param("items") List<CartItem>CartItems){
+        boolean success = goodsService.reduceStockDBBatch(CartItems);
+        if (success) {
+            return Result.success("库存扣减成功");
+        } else {
+            return Result.error("库存扣减失败");
+        }
+    }
+
     @Autowired
     private com.example.seckill.goods.mapper.SkuInfoMapper skuInfoMapper;
 

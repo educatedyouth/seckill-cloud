@@ -2,9 +2,12 @@ package com.example.seckill.goods.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.example.seckill.common.entity.SkuInfo;
+import com.example.seckill.common.vo.CartItem;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Update;
+
+import java.util.List;
 
 @Mapper
 public interface SkuInfoMapper extends BaseMapper<SkuInfo> {
@@ -18,4 +21,6 @@ public interface SkuInfoMapper extends BaseMapper<SkuInfo> {
      */
     @Update("UPDATE pms_sku_info SET stock = stock - #{count} WHERE sku_id = #{skuId} AND stock >= #{count}")
     int reduceStock(@Param("skuId") Long skuId, @Param("count") Integer count);
+
+    int reduceStockBatch(@Param("items") List<CartItem> items);
 }
