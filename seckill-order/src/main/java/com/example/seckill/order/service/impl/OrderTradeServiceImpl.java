@@ -80,7 +80,7 @@ public class OrderTradeServiceImpl implements OrderTradeService {
         }
         Result<String> reduceRes = goodsFeignClient.reduceStockDBBatch(selectedItems);
         if (reduceRes.getCode() != 200) {
-            log.error("商品库存扣减失败");
+            log.error("商品库存扣减失败，检查是否库存不走");
             throw new RuntimeException("库存不足");
         }
         // 4. 循环处理每一个【选中的】购物项
