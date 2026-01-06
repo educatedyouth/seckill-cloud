@@ -78,18 +78,16 @@ public class OrderTradeServiceImpl implements OrderTradeService {
         if (selectedItems.isEmpty()) {
             return Result.error("您勾选的商品已不在购物车中，请刷新");
         }
-
+        Result<String> reduceRes = goodsFeignClient.reduceStockDBBatch(selectedItems);
+        if (reduceRes.getCode() != 200) {
+            log.error("商品库存扣减失败");
+            throw new RuntimeException("库存不足");
+        }
         // 4. 循环处理每一个【选中的】购物项
         List<String> orderIds = new ArrayList<>();
         for (CartItem item : selectedItems) { // 遍历 selectedItems 而不是 allCartItems
             // --- B. 远程扣减库存 ---
-             Result<String> reduceRes = goodsFeignClient.reduceStockDB(item.getSkuId(), item.getCount());
-            // Result<String> reduceRes = goodsFeignClient.reduceStockDBBatch(selectedItems);
-            if (reduceRes.getCode() != 200) {
-                log.error("商品库存扣减失败: {}", item.getTitle());
-                throw new RuntimeException("库存不足: " + item.getTitle());
-            }
-
+            // Result<String> reduceRes = goodsFeignClient.reduceStockDB(item.getSkuId(), item.getCount());
             // --- C. 创建订单对象 ---
             OrderTrade order = new OrderTrade();
             order.setUserId(userId);

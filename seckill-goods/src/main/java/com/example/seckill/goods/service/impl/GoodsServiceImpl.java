@@ -456,6 +456,8 @@ public class GoodsServiceImpl extends ServiceImpl<SpuInfoMapper, SpuInfo> implem
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean reduceStockDBBatch(List<CartItem>CartItems){
+        // 【核心修复】强制按 SKU ID 升序排序，保证加锁顺序一致，防止死锁，顶级生产级别优化
+        CartItems.sort(Comparator.comparing(CartItem::getSkuId));
         int rows = skuInfoMapper.reduceStockBatch(CartItems);
         if (rows != CartItems.size()) {
             // 有 SKU 扣减失败（库存不足或不存在）
