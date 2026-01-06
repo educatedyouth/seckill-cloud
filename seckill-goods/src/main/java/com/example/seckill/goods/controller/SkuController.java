@@ -36,7 +36,7 @@ public class SkuController {
      * 数据库批量扣减库存 (供订单服务 Feign 调用)
      */
     @PostMapping("/reduce/dbBatch")
-    Result<String> reduceStockDBBatch(@Param("items") List<CartItem>CartItems){
+    Result<String> reduceStockDBBatch(@RequestBody  List<CartItem>CartItems){
         boolean success = goodsService.reduceStockDBBatch(CartItems);
         if (success) {
             return Result.success("库存扣减成功");

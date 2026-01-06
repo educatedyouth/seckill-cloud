@@ -25,5 +25,5 @@ public interface GoodsFeignClient {
 
     // 批量数据库扣减库存
     @PostMapping("/sku/reduce/dbBatch")
-    Result<String> reduceStockDBBatch(@Param("items") List<CartItem>CartItems);
+    Result<String> reduceStockDBBatch(@RequestBody List<CartItem>CartItems);
 }

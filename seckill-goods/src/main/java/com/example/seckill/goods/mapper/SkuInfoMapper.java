@@ -6,6 +6,7 @@ import com.example.seckill.common.vo.CartItem;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Update;
+import org.springframework.web.bind.annotation.RequestBody;
 
 import java.util.List;
 
