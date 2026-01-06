@@ -3,7 +3,6 @@ package com.example.seckill.order.feign;
 import com.example.seckill.common.entity.SkuInfo;
 import com.example.seckill.common.result.Result;
 import com.example.seckill.common.vo.CartItem;
-import org.apache.ibatis.annotations.Param;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
