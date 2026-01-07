@@ -4,6 +4,7 @@ import cn.hutool.json.JSONUtil;
 import com.example.seckill.common.dto.SeckillOrderMsgDTO;
 import com.example.seckill.common.entity.Order;
 import com.example.seckill.common.result.Result;
+import com.example.seckill.order.context.TableContext;
 import com.example.seckill.order.feign.GoodsFeignClient;
 import com.example.seckill.order.mapper.OrderMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -45,7 +46,7 @@ public class SeckillConsumer {
     @Autowired
     private RocketMQTemplate rocketMQTemplate;
 
-    // 延时关单 Topic (建议配置在 yml 中，这里先定义常量)
+    // 延时关单 Topic
     private static final String DELAY_TOPIC = "trade-order-delay-topic";
 
     private DefaultMQPushConsumer consumer;
@@ -72,52 +73,72 @@ public class SeckillConsumer {
                         Long orderId = msgDTO.getOrderId();
                         Long userId = msgDTO.getUserId();
                         Long skuId = msgDTO.getSkuId();
-                        Long orderPrice = msgDTO.getOrderPrice();
-                        // 2. 【幂等性检查】
-                        // 利用基因 ID 直接查库，如果订单已存在，说明是重复消息，直接成功
-                        Order existOrder = orderMapper.selectById(orderId);
-                        if (existOrder != null) {
-                            log.warn(">>> 订单已存在，触发幂等逻辑，跳过。orderId={}", orderId);
-                            return ConsumeConcurrentlyStatus.CONSUME_SUCCESS;
+                        // 建议：移除 orderPrice，改用查库或固定值，这里暂用 1 元模拟
+                        BigDecimal price = new BigDecimal("1.00");
+
+                        // -------------------------------------------------------
+                        // 【核心路由逻辑】计算分表名：order_tbl_0 ~ order_tbl_3
+                        // -------------------------------------------------------
+                        long tableIndex = userId % 4; // 也可以用 orderId % 4，结果是一样的
+                        String tableName = "order_tbl_" + tableIndex;
+                        TableContext.set(tableName); // 【关键】设置 ThreadLocal
+                        log.info(">>> 路由到分表: {}", tableName);
+
+                        try {
+                            // 2. 【幂等性检查】
+                            // 此时 selectById 会自动变成 select ... from order_tbl_x ...
+                            Order existOrder = orderMapper.selectById(orderId);
+                            if (existOrder != null) {
+                                log.warn(">>> 订单已存在，触发幂等逻辑，跳过。orderId={}", orderId);
+                                return ConsumeConcurrentlyStatus.CONSUME_SUCCESS;
+                            }
+
+                            // 3. 【远程扣减库存】(Goods 服务)
+                            // 注意：这里没有分布式事务，遵循“先扣库存，后建单”的顺序
+                            // 如果扣库存成功但建单失败，会出现“少卖”（库存丢了），需要后续补偿或人工处理
+                            // 生产环境建议使用 Seata TCC 或 事务消息 + 本地消息表
+                            // Result<String> stockResult = goodsFeignClient.reduceStockDB(skuId, 1);
+                            // if (stockResult == null || stockResult.getCode() != 200) {
+                            //    log.error(">>> 扣减库存失败");
+                            //    return ConsumeConcurrentlyStatus.CONSUME_SUCCESS; // 业务失败，不再重试
+                            //}
+                            log.info(">>> (模拟) 远程扣减库存成功");
+
+                            // 4. 【本地创建订单】
+                            Order order = new Order();
+                            order.setId(orderId);
+                            order.setUserId(userId);
+                            order.setSkuId(skuId);
+                            order.setCount(1);
+                            order.setMoney(price);
+                            order.setStatus(1); // 1-待支付
+                            order.setOrderType(1); // 1-秒杀订单
+                            order.setCreateTime(new Date());
+                            order.setUpdateTime(new Date());
+
+                            // 执行插入 (MP 会拦截并替换表名)
+                            orderMapper.insert(order);
+                            log.info(">>> 秒杀订单落库成功: orderId={}, table={}", orderId, tableName);
+
+                            // 5. 【发送延时消息】(用于超时自动关单)
+                            // 30分钟 = Level 16 (1s 5s ... 10m 20m 30m)
+                            try {
+                                MessageBuilder<?> builder = MessageBuilder.withPayload(String.valueOf(orderId));
+                                rocketMQTemplate.syncSend(DELAY_TOPIC, builder.build(), 3000, 16);
+                                log.info(">>> 延时关单消息已发送");
+                            } catch (Exception e) {
+                                log.error(">>> 延时消息发送失败，可能导致无法自动关单", e);
+                                // 这里可以不阻断主流程，依靠定时任务兜底
+                            }
+
+                        } finally {
+                            // 【必须】清理 ThreadLocal，防止线程复用导致数据污染
+                            TableContext.clear();
                         }
-
-                        // 3. 【远程扣减库存】
-                        // 调用 Goods 服务扣减 MySQL 库存
-                        Result<String> stockResult = goodsFeignClient.reduceStockDB(skuId, 1);
-                        if (stockResult.getCode() != 200) {
-                            log.error(">>> 扣减库存失败");
-                            // 暂时策略：不重试，视为库存不足或异常，直接丢弃消息 (或者记录死信)
-                            // 生产环境应发送“库存回滚”消息
-                            return ConsumeConcurrentlyStatus.CONSUME_SUCCESS;
-                        }
-
-                        // 4. 【本地创建订单】
-                        Order order = new Order();
-                        order.setId(orderId); // 使用预生成的基因ID
-                        order.setUserId(userId);
-                        order.setSkuId(skuId);
-                        order.setCount(1);
-                        order.setMoney(BigDecimal.valueOf(orderPrice));
-                        order.setStatus(1); // 1-待支付
-                        order.setOrderType(1); // 1-秒杀订单
-                        order.setCreateTime(new Date());
-                        order.setUpdateTime(new Date());
-
-                        orderMapper.insert(order);
-                        log.info(">>> 秒杀订单落库成功: orderId={}", orderId);
-
-                        // 5. 【发送延时消息】(用于超时自动关单)
-                        // RocketMQ 延时级别: 1s 5s 10s 30s 1m 2m 3m 4m 5m 6m 7m 8m 9m 10m 20m 30m 1h 2h
-                        // 级别 16 = 30m (根据实际 RocketMQ 配置调整，这里假设测试用 10s = 级别3)
-                        // 生产环境通常设为 30分钟
-                        MessageBuilder<?> builder = MessageBuilder.withPayload(String.valueOf(orderId));
-                        // 这里为了演示效果，先设为 10秒 (Level 3)，你可以改为 30分 (Level 16)
-                        rocketMQTemplate.syncSend(DELAY_TOPIC, builder.build(), 3000, 3);
-                        log.info(">>> 延时关单消息已发送: orderId={}", orderId);
 
                     } catch (Exception e) {
                         log.error(">>> 消费异常", e);
-                        // 异常重试
+                        // 异常重试 (RocketMQ 默认重试 16 次)
                         return ConsumeConcurrentlyStatus.RECONSUME_LATER;
                     }
                 }

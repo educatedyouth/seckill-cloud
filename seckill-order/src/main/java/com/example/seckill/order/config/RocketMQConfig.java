@@ -37,7 +37,7 @@ public class RocketMQConfig {
      * initMethod = "start": Bean 创建完成后，自动调用 producer.start() 启动 MQ
      * destroyMethod = "shutdown": Bean 销毁时(停服)，自动调用 producer.shutdown() 释放资源
      */
-    @Bean(initMethod = "start", destroyMethod = "shutdown")
+    //@Bean(initMethod = "start", destroyMethod = "shutdown")
     public TransactionMQProducer transactionMQProducer(SeckillTransactionListener transactionListener) {
         // 1. 实例化事务生产者，指定组名
         TransactionMQProducer producer = new TransactionMQProducer(producerGroup);
