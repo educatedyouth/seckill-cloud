@@ -3,6 +3,7 @@ package com.example.seckill.order.consumer;
 import cn.hutool.json.JSONUtil;
 import com.example.seckill.common.dto.SeckillOrderMsgDTO;
 import com.example.seckill.common.entity.Order;
+import com.example.seckill.common.entity.SkuInfo;
 import com.example.seckill.common.result.Result;
 import com.example.seckill.order.context.TableContext;
 import com.example.seckill.order.feign.GoodsFeignClient;
@@ -74,7 +75,27 @@ public class SeckillConsumer {
                         Long userId = msgDTO.getUserId();
                         Long skuId = msgDTO.getSkuId();
                         // 建议：移除 orderPrice，改用查库或固定值，这里暂用 1 元模拟
-                        BigDecimal price = new BigDecimal("1.00");
+                        // ================== 【修改开始】 ==================
+
+                        // 远程查询商品信息获取实时价格
+                        Result<SkuInfo> skuResult = null;
+                        try {
+                            skuResult = goodsFeignClient.getSkuInfo(skuId);
+                        } catch (Exception e) {
+                            log.error(">>> [秒杀消费者] 调用商品服务异常, 稍后重试. skuId={}", skuId, e);
+                            // 如果远程调用报错，返回稍后重试，不要直接消费掉消息
+                            return ConsumeConcurrentlyStatus.RECONSUME_LATER;
+                        }
+
+                        if (skuResult == null || skuResult.getData() == null) {
+                            log.error(">>> [秒杀消费者] 未查询到商品信息, 可能是商品已下架或数据异常. skuId={}", skuId);
+                            // 这种属于业务严重错误，建议直接消费成功(丢弃)，或者记录死信日志，避免死循环重试
+                            return ConsumeConcurrentlyStatus.CONSUME_SUCCESS;
+                        }
+
+                        // 获取真实价格
+                        BigDecimal price = skuResult.getData().getPrice();
+                        log.info(">>> [秒杀消费者] 获取商品真实价格成功: {}", price);
 
                         // -------------------------------------------------------
                         // 【核心路由逻辑】计算分表名：order_tbl_0 ~ order_tbl_3
