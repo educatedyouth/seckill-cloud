@@ -7,6 +7,7 @@ import com.example.seckill.common.entity.SkuImages;
 import com.example.seckill.common.entity.SkuInfo;
 import com.example.seckill.common.entity.SkuSaleAttrValue;
 import com.example.seckill.common.entity.SpuInfo;
+import com.example.seckill.common.utils.RedisUtil;
 import com.example.seckill.common.vo.CartItem;
 import com.example.seckill.goods.dto.SkuSaleAttrDTO;
 import com.example.seckill.goods.dto.SkuSaveDTO;
@@ -463,6 +464,35 @@ public class GoodsServiceImpl extends ServiceImpl<SpuInfoMapper, SpuInfo> implem
             // 有 SKU 扣减失败（库存不足或不存在）
             throw new RuntimeException("批量扣减库存失败，存在库存不足的商品");
         }
+        return true;
+    }
+    @Autowired
+    private RedisUtil redisUtil;
+    @Override
+    public boolean preWarmStock(Long skuId) {
+        // 1. 从数据库查询最新的 SKU 信息
+        SkuInfo skuInfo = skuInfoMapper.selectById(skuId);
+        if (skuInfo == null) {
+            return false;
+        }
+
+        // 2. 获取库存数量
+        Integer stock = skuInfo.getStock();
+        if (stock == null) {
+            stock = 0;
+        }
+
+        // 3. 写入 Redis
+        // Key 格式必须与 Lua 脚本和 Order 服务保持绝对一致：seckill:stock:{skuId}
+        String key = "seckill:stock:" + skuId;
+
+        // 1. 将 Integer 转换为 String
+        // 2. 传入过期时间，例如 24小时 (86400秒)，防止垃圾数据永久驻留
+        redisUtil.set(key, String.valueOf(stock), 86400);
+
+        // 打印日志
+        System.out.println(">>> 商品 " + skuId + " 库存预热完成，Redis Key: " + key + "， 数量: " + stock);
+
         return true;
     }
 }

@@ -47,4 +47,12 @@ public interface GoodsService extends IService<SpuInfo> {
     boolean reduceStockDB(Long skuId, Integer count);
 
     boolean reduceStockDBBatch(List<CartItem>CartItems);
+
+    /**
+     * [新增] 秒杀商品库存预热
+     * 将数据库中的库存同步到 Redis
+     * @param skuId 商品ID
+     * @return true 成功
+     */
+    boolean preWarmStock(Long skuId);
 }

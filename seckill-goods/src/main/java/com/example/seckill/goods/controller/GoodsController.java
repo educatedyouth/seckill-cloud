@@ -141,5 +141,13 @@ public class GoodsController {
         return Result.success("全量同步任务已提交，耗时: " + (end - start) + "ms");
     }
 
-
+    @GetMapping("/prewarm/{skuId}")
+    public Result preWarmStock(@PathVariable Long skuId) {
+        boolean success = goodsService.preWarmStock(skuId);
+        if (success) {
+            return Result.success("库存预热成功");
+        } else {
+            return Result.error("预热失败，商品不存在");
+        }
+    }
 }

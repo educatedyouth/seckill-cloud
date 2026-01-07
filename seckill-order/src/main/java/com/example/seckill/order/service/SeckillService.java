@@ -1,11 +1,17 @@
 package com.example.seckill.order.service;
 
+import com.example.seckill.common.dto.SeckillSubmitDTO;
+import com.example.seckill.common.result.Result;
+
 public interface SeckillService {
+
     /**
-     * 秒杀核心接口
-     * @param userId 用户ID
-     * @param goodsId 商品ID
-     * @return 是否抢购提交成功 (注意：这里返回true只代表请求排队成功，不代表订单一定创建)
+     * 处理秒杀请求 (核心高并发接口)
+     * 1. 本地缓存校验
+     * 2. Redis Lua 预扣减
+     * 3. 发送 MQ 异步下单
+     * * @param submitDTO 秒杀提交参数
+     * @return 结果
      */
-    boolean seckill(int userId, int goodsId);
+    Result<String> processSeckillRequest(SeckillSubmitDTO submitDTO);
 }

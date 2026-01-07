@@ -1,83 +1,121 @@
 package com.example.seckill.order.service.impl;
 
-import cn.hutool.json.JSONUtil; // 引入 Hutool 工具
-import com.example.seckill.common.dto.SeckillMsgDTO;
+import com.example.seckill.common.context.UserContext;
+import com.example.seckill.common.dto.SeckillOrderMsgDTO;
+import com.example.seckill.common.dto.SeckillSubmitDTO;
+import com.example.seckill.common.result.Result;
+import com.example.seckill.common.utils.SnowflakeIdWorker;
+import com.example.seckill.order.config.RocketMQConfig;
 import com.example.seckill.order.service.SeckillService;
-import org.apache.rocketmq.client.producer.LocalTransactionState;
-import org.apache.rocketmq.client.producer.TransactionMQProducer;
-import org.apache.rocketmq.client.producer.TransactionSendResult;
-import org.apache.rocketmq.common.message.Message;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.rocketmq.spring.core.RocketMQTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Service;
 
-import java.nio.charset.StandardCharsets;
+import jakarta.annotation.PostConstruct;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 
+@Slf4j
 @Service
 public class SeckillServiceImpl implements SeckillService {
 
     @Autowired
-    private TransactionMQProducer transactionMQProducer;
+    private StringRedisTemplate stringRedisTemplate;
 
-    // 从配置文件读取 Topic
-    @Value("${app.rocketmq.topic}")
-    private String topic;
+    @Autowired
+    private RocketMQTemplate rocketMQTemplate;
+
+    @Autowired
+    private RocketMQConfig rocketMQConfig; // 获取 Topic 配置
+
+    // Lua 脚本实例
+    private DefaultRedisScript<Long> seckillScript;
+
+    // JVM 本地库存标记 (Key: skuId, Value: true=有货, false=无货)
+    // 作用：减少对 Redis 的网络冲击，当 Redis 返回库存不足时，将此标记设为 false
+    private final ConcurrentHashMap<Long, Boolean> stockMap = new ConcurrentHashMap<>();
+
+    @PostConstruct
+    public void init() {
+        // 初始化 Lua 脚本
+        seckillScript = new DefaultRedisScript<>();
+        seckillScript.setResultType(Long.class);
+        seckillScript.setLocation(new ClassPathResource("seckill_stock.lua"));
+    }
 
     @Override
-    public boolean seckill(int userId, int goodsId) {
-        // 1. 生成唯一业务流水号 (Transaction Key)
-        // 格式: tx:goodsId:userId
-        // 作用: 
-        //   a. 在 Listener 里作为 Redis 的 Key，防止同一个用户重复抢购同一个商品
-        //   b. 在回查时，通过判断这个 Key 是否存在来决定消息状态
-        String transactionKey = "tx:" + goodsId + ":" + userId;
-
-        // 2. 封装消息体
-        // 2. 【升级】使用 DTO 封装消息，不再手动拼 String
-        SeckillMsgDTO msgDTO = new SeckillMsgDTO(userId, goodsId);
-        String body = JSONUtil.toJsonStr(msgDTO);
-
-        Message msg = new Message(topic, "tag_seckill", transactionKey, body.getBytes(StandardCharsets.UTF_8));
-        // 这里的 UserProperty 是给 Listener 里的 Lua 脚本用的
-        msg.putUserProperty("goodsId", String.valueOf(goodsId));
-
-        try {
-            // 3. 【核心一步】发送事务消息
-            // 参数1: 消息对象
-            // 参数2: arg (会被传递给 Listener 的 executeLocalTransaction 方法的 arg 参数)
-            // 这里的逻辑是：
-            //   -> 发送 Half 消息给 Broker
-            //   -> 成功后，自动回调 SeckillTransactionListener.executeLocalTransaction(msg, transactionKey)
-            //   -> Listener 执行 Redis Lua 脚本扣库存
-            //   -> 根据 Lua 结果返回 COMMIT 或 ROLLBACK
-            TransactionSendResult result = transactionMQProducer.sendMessageInTransaction(msg, transactionKey);
-
-            System.out.printf(">>> 用户 %d 抢购请求已发出，事务状态: %s%n", userId, result.getLocalTransactionState());
-
-            // 2. 【新增】如果事务消息提交成功，发送“延时检查消息”
-            if (result.getLocalTransactionState() == LocalTransactionState.COMMIT_MESSAGE) {
-
-                // 构造一条新的消息，专门用于“检查是否超时”
-                // 注意：这里换一个 Topic，或者用同一个 Topic 加不同的 Tag 区分
-                // 为了清晰，我们建议用同一个 Topic，但 Tag 设为 "Tag_Check_Pay"
-                Message checkMsg = new Message(topic, "Tag_Check_Pay", transactionKey, body.getBytes(StandardCharsets.UTF_8));
-                // 【核心代码】设置延时等级
-                // Level 3 = 10秒后消费者才能收到 (模拟 15分钟)
-                // 1s 5s 10s 30s 1m 2m 3m 4m 5m 6m 7m 8m 9m 10m 20m 30m 1h 2h
-                checkMsg.setDelayTimeLevel(3);
-
-                // 发送普通消息 (不需要事务，发出去就行)
-                transactionMQProducer.send(checkMsg);
-                System.out.println(">>> ⏳ 延时检查消息已发出(10秒后触发)，检查订单: " + transactionKey);
-            }
-
-            // 只有当本地事务状态为 COMMIT_MESSAGE 时，才算抢购排队成功
-            return result.getLocalTransactionState() == LocalTransactionState.COMMIT_MESSAGE;
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            System.err.println(">>> 抢购发送异常: " + e.getMessage());
-            return false;
+    public Result<String> processSeckillRequest(SeckillSubmitDTO submitDTO) {
+        Long userId = 3L;
+        Long skuId = submitDTO.getSkuId();
+        Long orderPrice = submitDTO.getOrderPrice();
+        // 1. 【第一道防线】JVM 本地内存校验
+        // 如果本地标记显示无货，直接返回，不查 Redis
+        if (stockMap.containsKey(skuId) && !stockMap.get(skuId)) {
+            return Result.error("手慢了，商品已秒光 (Local)");
         }
+
+        // 2. 【第二道防线】Redis Lua 原子预扣减
+        // KEYS[1] = seckill:stock:{skuId}
+        // KEYS[2] = seckill:order:done:{userId}:{skuId}
+        List<String> keys = Collections.singletonList("seckill:stock:" + skuId);
+        // 注意：Lua 脚本只需要 KEYS[1] 和 KEYS[2]，我们这里传参的时候
+        // Spring Data Redis 的 execute 方法：keys 列表对应 KEYS[1]...
+        // 额外的 args 对应 ARGV[1]...
+        // 但我们的脚本里写死了 KEYS[2] 是基于 userId 拼接的，所以我们需要传递 userId 进去或者直接把 KEYS[2] 也算好传进去
+
+        // *修正策略*：为了配合我们之前的 Lua 脚本 (KEYS[2] 是判定重复购买的 key)
+        // 让我们显式构建 KEYS[2]
+        String stockKey = "seckill:stock:" + skuId;
+        String dupKey = "seckill:order:done:" + userId + ":" + skuId;
+        List<String> scriptKeys = List.of(stockKey, dupKey);
+
+        Long result = stringRedisTemplate.execute(seckillScript, scriptKeys);
+
+        if (result == null) {
+            return Result.error("系统繁忙");
+        }
+
+        // 结果判定：-1 库存不足，-2 重复购买，1 成功
+        if (result == -2) {
+            return Result.error("您已经购买过该商品，请勿重复抢购");
+        }
+        if (result == -1) {
+            // 标记本地缓存为无货
+            stockMap.put(skuId, false);
+            return Result.error("手慢了，商品已秒光");
+        }
+
+        // 3. 【第三道防线】削峰填谷 - 发送 MQ
+        // 生成 基因 ID (保证后续分库分表路由一致)
+        long orderId = SnowflakeIdWorker.getInstance().nextId(userId);
+
+        // 组装消息体
+        SeckillOrderMsgDTO msgDTO = new SeckillOrderMsgDTO();
+        msgDTO.setUserId(userId);
+        msgDTO.setSkuId(skuId);
+        msgDTO.setOrderId(orderId);
+        msgDTO.setOrderPrice(orderPrice);
+        // msgDTO.setActivityId(submitDTO.getActivityId()); // 如果有活动ID
+
+        // 发送消息
+        String destination = rocketMQConfig.getOrderTopic(); // 确保 Config 里配置了 Topic
+        try {
+            rocketMQTemplate.send(destination, MessageBuilder.withPayload(msgDTO).build());
+            log.info("秒杀排队中，消息发送成功: orderId={}", orderId);
+        } catch (Exception e) {
+            log.error("秒杀消息发送失败", e);
+            // 极端情况：Redis 扣了，MQ 没发出去 -> 导致少卖 (库存这里可以不回滚，或者依赖后续补偿)
+            // 生产环境建议使用 事务消息 (Transaction Message) 保证 100% 可靠
+            return Result.error("排队失败，请重试");
+        }
+
+        // 返回排队中，前端需要拿着 orderId 轮询结果
+        return Result.success(String.valueOf(orderId));
     }
 }

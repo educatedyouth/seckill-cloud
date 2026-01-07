@@ -1,12 +1,14 @@
 package com.example.seckill.order.controller;
 
+import com.example.seckill.common.dto.SeckillSubmitDTO;
+import com.example.seckill.common.result.Result;
 import com.example.seckill.order.service.SeckillService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
+/**
+ * 秒杀核心接口 (生产者)
+ */
 @RestController
 @RequestMapping("/seckill")
 public class SeckillController {
@@ -15,25 +17,19 @@ public class SeckillController {
     private SeckillService seckillService;
 
     /**
-     * 秒杀请求入口
-     * 测试链接: http://localhost:8080/seckill/do_seckill?userId=1001&goodsId=1001
-     * * @param userId 模拟用户ID
-     * @param goodsId 模拟商品ID
-     * @return 简单的 String 提示
+     * 执行秒杀 (异步排队)
+     * POST /seckill/do_seckill
+     * * @param submitDTO 参数 (skuId, addressId, token)
+     * @return 订单ID (用于轮询) 或 错误信息
      */
-    @GetMapping("/do_seckill")
-    public String doSeckill(@RequestParam("userId") int userId,
-                            @RequestParam("goodsId") int goodsId) {
-
-        System.out.printf(">>> 收到秒杀请求: User=%d, Goods=%d%n", userId, goodsId);
-
-        // 调用 Service 发送事务消息
-        boolean isSuccess = seckillService.seckill(userId, goodsId);
-
-        if (isSuccess) {
-            return "排队成功！请求已发送给 MQ，请稍后查询订单状态。";
-        } else {
-            return "抢购失败！库存不足 或 系统繁忙。";
+    @PostMapping("/do_seckill")
+    public Result<String> doSeckill(@RequestBody SeckillSubmitDTO submitDTO) {
+        // 参数校验
+        if (submitDTO.getSkuId() == null) {
+            return Result.error("商品信息不能为空");
         }
+
+        // 调用 Service
+        return seckillService.processSeckillRequest(submitDTO);
     }
 }
