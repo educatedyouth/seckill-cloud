@@ -124,7 +124,7 @@ public class SeckillConsumer {
                             // 30分钟 = Level 16 (1s 5s ... 10m 20m 30m)
                             try {
                                 MessageBuilder<?> builder = MessageBuilder.withPayload(String.valueOf(orderId));
-                                rocketMQTemplate.syncSend(DELAY_TOPIC, builder.build(), 3000, 16);
+                                rocketMQTemplate.syncSend(DELAY_TOPIC, builder.build(), 3000, 3);
                                 log.info(">>> 延时关单消息已发送");
                             } catch (Exception e) {
                                 log.error(">>> 延时消息发送失败，可能导致无法自动关单", e);

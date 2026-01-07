@@ -1,5 +1,6 @@
 package com.example.seckill.order.config;
 
+import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
 import com.baomidou.mybatisplus.extension.spring.MybatisSqlSessionFactoryBean;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.springframework.context.annotation.Bean;
@@ -28,14 +29,23 @@ public class DataSourceConfig {
     }
 
     // 2. 手动创建 SqlSessionFactory (替代 MyBatis-Plus 自动配置)
-    // 这一步是为了解决 'sqlSessionFactory required' 报错的终极杀招
+    // 【修改点】添加 MybatisPlusInterceptor 参数，Spring 会自动注入我们在 MybatisPlusConfig 定义的那个 Bean
     @Bean
-    public SqlSessionFactory sqlSessionFactory(DataSource dataSource) throws Exception {
+    public SqlSessionFactory sqlSessionFactory(DataSource dataSource, MybatisPlusInterceptor mybatisPlusInterceptor) throws Exception {
         MybatisSqlSessionFactoryBean sessionFactory = new MybatisSqlSessionFactoryBean();
         sessionFactory.setDataSource(dataSource);
 
-        // 如果你有 mapper.xml 文件，需要在这里指定路径；如果是纯注解，这行可以忽略
+        // 【关键修复】手动添加插件，否则分表拦截器不会生效！
+        sessionFactory.setPlugins(mybatisPlusInterceptor);
+
+        // 如果你是纯注解开发，这行可以注释；如果有 XML 需要解开
         // sessionFactory.setMapperLocations(new PathMatchingResourcePatternResolver().getResources("classpath*:/mapper/*.xml"));
+
+        // 建议：如果你的项目依赖 yml 中的 mybatis-plus 配置（如驼峰映射），手动配置时可能会丢失
+        // 可以在这里手动开启驼峰映射（虽然 MP 默认也是开启的）
+        com.baomidou.mybatisplus.core.MybatisConfiguration configuration = new com.baomidou.mybatisplus.core.MybatisConfiguration();
+        configuration.setMapUnderscoreToCamelCase(true);
+        sessionFactory.setConfiguration(configuration);
 
         return sessionFactory.getObject();
     }
