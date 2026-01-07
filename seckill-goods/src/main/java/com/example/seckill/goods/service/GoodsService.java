@@ -55,4 +55,11 @@ public interface GoodsService extends IService<SpuInfo> {
      * @return true 成功
      */
     boolean preWarmStock(Long skuId);
+
+    /**
+     * [新增] 秒杀结束后，将 Redis 剩余库存回补到数据库
+     * @param skuId 商品ID
+     * @return 成功与否
+     */
+    boolean syncStockBack(Long skuId);
 }

@@ -93,15 +93,6 @@ public class SeckillConsumer {
                                 return ConsumeConcurrentlyStatus.CONSUME_SUCCESS;
                             }
 
-                            // 3. 【远程扣减库存】(Goods 服务)
-                            // 注意：这里没有分布式事务，遵循“先扣库存，后建单”的顺序
-                            // 如果扣库存成功但建单失败，会出现“少卖”（库存丢了），需要后续补偿或人工处理
-                            // 生产环境建议使用 Seata TCC 或 事务消息 + 本地消息表
-                            // Result<String> stockResult = goodsFeignClient.reduceStockDB(skuId, 1);
-                            // if (stockResult == null || stockResult.getCode() != 200) {
-                            //    log.error(">>> 扣减库存失败");
-                            //    return ConsumeConcurrentlyStatus.CONSUME_SUCCESS; // 业务失败，不再重试
-                            //}
                             log.info(">>> (模拟) 远程扣减库存成功");
 
                             // 4. 【本地创建订单】

@@ -36,4 +36,26 @@ public class RedisUtil {
         Long expire = stringRedisTemplate.getExpire(key, TimeUnit.SECONDS);
         return expire != null ? expire : 0;
     }
+    /**
+     * 获取缓存值
+     *
+     * @param key 键
+     * @return 对应的 value，不存在则返回 null
+     */
+    public String get(String key) {
+        return key == null ? null : stringRedisTemplate.opsForValue().get(key);
+    }
+
+    /**
+     * 删除缓存
+     *
+     * @param key 键
+     * @return 是否删除成功
+     */
+    public boolean del(String key) {
+        if (key == null) {
+            return false;
+        }
+        return stringRedisTemplate.delete(key);
+    }
 }

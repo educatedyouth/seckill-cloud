@@ -141,13 +141,37 @@ public class GoodsController {
         return Result.success("全量同步任务已提交，耗时: " + (end - start) + "ms");
     }
 
+    // 原有预热接口
     @GetMapping("/prewarm/{skuId}")
     public Result preWarmStock(@PathVariable Long skuId) {
-        boolean success = goodsService.preWarmStock(skuId);
-        if (success) {
-            return Result.success("库存预热成功");
-        } else {
-            return Result.error("预热失败，商品不存在");
+        // ... (保持原有调用逻辑)
+        try {
+            boolean success = goodsService.preWarmStock(skuId);
+            if (success) {
+                return Result.success("库存预热成功 (DB->Redis)");
+            } else {
+                return Result.error("预热失败，商品不存在或库存为0");
+            }
+        } catch (Exception e) {
+            return Result.error("预热异常: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 【新增】库存回补接口
+     * 秒杀结束后调用，将 Redis 剩余库存同步回 DB
+     */
+    @PostMapping("/sync/stock/{skuId}")
+    public Result syncStockBack(@PathVariable Long skuId) {
+        try {
+            boolean success = goodsService.syncStockBack(skuId);
+            if (success) {
+                return Result.success("库存回补成功 (Redis->DB)");
+            } else {
+                return Result.error("库存回补失败");
+            }
+        } catch (Exception e) {
+            return Result.error("回补异常: " + e.getMessage());
         }
     }
 }

@@ -469,6 +469,7 @@ public class GoodsServiceImpl extends ServiceImpl<SpuInfoMapper, SpuInfo> implem
     @Autowired
     private RedisUtil redisUtil;
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public boolean preWarmStock(Long skuId) {
         // 1. 从数据库查询最新的 SKU 信息
         SkuInfo skuInfo = skuInfoMapper.selectById(skuId);
@@ -476,23 +477,61 @@ public class GoodsServiceImpl extends ServiceImpl<SpuInfoMapper, SpuInfo> implem
             return false;
         }
 
-        // 2. 获取库存数量
-        Integer stock = skuInfo.getStock();
-        if (stock == null) {
-            stock = 0;
+        // 2. 获取数据库库存
+        Integer dbStock = skuInfo.getStock();
+        if (dbStock == null || dbStock <= 0) {
+            log.warn(">>> 商品 {} 库存不足，无法预热", skuId);
+            return false;
         }
 
-        // 3. 写入 Redis
-        // Key 格式必须与 Lua 脚本和 Order 服务保持绝对一致：seckill:stock:{skuId}
+        // 3. 【核心修改】库存转移：写入 Redis 并清空数据库库存
+        // Key 格式必须与 Lua 脚本和 Order 服务保持绝对一致
         String key = "seckill:stock:" + skuId;
 
-        // 1. 将 Integer 转换为 String
-        // 2. 传入过期时间，例如 24小时 (86400秒)，防止垃圾数据永久驻留
-        redisUtil.set(key, String.valueOf(stock), 86400);
+        // 3.1 写入 Redis (设置过期时间 24小时)
+        redisUtil.set(key, String.valueOf(dbStock), 86400);
 
-        // 打印日志
-        System.out.println(">>> 商品 " + skuId + " 库存预热完成，Redis Key: " + key + "， 数量: " + stock);
+        // 3.2 扣减数据库库存 (逻辑上的"锁定"到 Redis)
+        // 这里直接设为 0，代表全部库存都托管给了 Redis
+        skuInfo.setStock(0);
+        int rows = skuInfoMapper.updateById(skuInfo);
 
+        if (rows > 0) {
+            log.info(">>> 商品 {} 库存预热完成。DB库存已清零，Redis Key: {}， 数量: {}", skuId, key, dbStock);
+            return true;
+        } else {
+            // 极端情况：更新失败，抛出异常回滚 Redis 操作
+            throw new RuntimeException("预热失败：数据库扣减异常");
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean syncStockBack(Long skuId) {
+        String key = "seckill:stock:" + skuId;
+
+        // 1. 获取 Redis 中剩余的库存
+        Object valObj = redisUtil.get(key);
+        if (valObj == null) {
+            log.info(">>> 商品 {} Redis 库存 Key 不存在，无需回补", skuId);
+            return true;
+        }
+
+        int remainingStock = Integer.parseInt(valObj.toString());
+        log.info(">>> 商品 {} 活动结束，Redis 剩余库存: {}", skuId, remainingStock);
+
+        // 2. 回补到数据库
+        if (remainingStock > 0) {
+            SkuInfo skuInfo = skuInfoMapper.selectById(skuId);
+            if (skuInfo != null) {
+                skuInfo.setStock(skuInfo.getStock() + remainingStock);
+                skuInfoMapper.updateById(skuInfo);
+                log.info(">>> 商品 {} 数据库库存回补成功，当前 DB 库存: {}", skuId, skuInfo.getStock());
+            }
+        }
+
+        // 3. 删除 Redis Key (防止脏数据)
+        redisUtil.del(key);
         return true;
     }
 }
