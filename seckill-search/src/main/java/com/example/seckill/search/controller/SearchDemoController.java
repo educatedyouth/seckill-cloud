@@ -125,4 +125,5 @@ public class SearchDemoController {
 
         return Result.success(resultList);
     }
+
 }
