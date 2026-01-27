@@ -1,0 +1,2 @@
+com.example.seckill.common.config.GlobalJsonConfig
+com.example.seckill.common.config.FeignConfig
