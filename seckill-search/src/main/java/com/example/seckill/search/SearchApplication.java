@@ -2,6 +2,7 @@ package com.example.seckill.search;
 
 import com.example.seckill.search.dto.SearchParamDTO;
 import com.example.seckill.search.service.GpuSearchService;
+import com.example.seckill.search.service.LlmBatchService;
 import com.example.seckill.search.service.SearchService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
@@ -11,9 +12,7 @@ import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.stereotype.Component;
 
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
 
 @SpringBootApplication(scanBasePackages = {"com.example.seckill"}) // 扫描common包
 @EnableDiscoveryClient
@@ -28,10 +27,11 @@ public class SearchApplication {
         @Autowired
         private GpuSearchService gpuSearchService;
 
-        private final SearchService myService;
-
-        public ConcurrentSearchRunner(SearchService myService) {
-            this.myService = myService;
+        private final SearchService searchService;
+        private final LlmBatchService llmBatchService ;
+        public ConcurrentSearchRunner(SearchService myService,LlmBatchService llmBatchService) {
+            this.searchService = myService;
+            this.llmBatchService = llmBatchService;
         }
 
         @Override
@@ -40,7 +40,7 @@ public class SearchApplication {
             System.out.println(">>> 等待 0.5秒 确保预热完成...");
             Thread.sleep(500);
 
-            int threads = 15000; // 并发数，对应你的 C++ 资源池大小
+            int threads = 100; // 并发数，对应你的 C++ 资源池大小
             ExecutorService executor = Executors.newFixedThreadPool(threads);
 
             // 这是一个"发令枪"，确保 3 个线程同时起跑
@@ -68,17 +68,27 @@ public class SearchApplication {
                         // GPU测试代码
                         // SearchParamDTO searchParamDTO = new SearchParamDTO();
                         // searchParamDTO.setKeyword("手表");
-                        // myService.searchByGPU(searchParamDTO);
+                        // searchService.searchByGPU(searchParamDTO);
                         // long end = System.currentTimeMillis();
                         // System.out.println(String.format("=== 线程-%d 完成, 耗时: %dms ===",
                         //         threadId, (end - start)));
+
                         // CPU测试代码
-                        SearchParamDTO searchParamDTO = new SearchParamDTO();
-                        searchParamDTO.setKeyword("手表");
-                        myService.search(searchParamDTO);
-                        long end = System.currentTimeMillis();
-                        System.out.println(String.format("=== 线程-%d 完成, 耗时: %dms ===",
-                                threadId, (end - start)));
+                        // SearchParamDTO searchParamDTO = new SearchParamDTO();
+                        // searchParamDTO.setKeyword("手表");
+                        // searchService.search(searchParamDTO);
+                        // long end = System.currentTimeMillis();
+                        // System.out.println(String.format("=== 线程-%d 完成, 耗时: %dms ===",
+                        //         threadId, (end - start)));
+
+                        // LLM测试代码
+                        String userPrompt = "商品标题：小米手机"+"\n商品简介：拍照手机、高性能手机";
+                        String formattedPrompt =
+                                        "你是一个电商搜索优化专家。请根据商品标题和简介，扩展生成一行5-10个中文搜索关键词，绝对不要分段，绝对不要编号，要求包含同义词，功能词，场景词等简短词汇。\n" +
+                                        userPrompt;
+                        CompletableFuture<String> future = llmBatchService.asyncChat(formattedPrompt);
+                        String result = future.get(300, TimeUnit.SECONDS); // 设置个业务超时兜底
+                        System.out.println(result + "\n");
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
