@@ -22,11 +22,12 @@ public class GpuSearchService {
 
     // ================== 配置常量 ==================
     // 最大容量：200万 (根据你的显存大小调整，FP16下 200万 * 1024 维约占 4GB 显存)
-    private static final int MAX_CAPACITY = 1_000_000;
+    private static final int MAX_CAPACITY = 1_000;
     // 向量维度：与 C++ 和 Embedding 模型保持一致
-    private static final int DIM = 1024;
+    public static final int DIM = 1024;
     // 模拟数据倍增系数：如果 DB 只有 10 条，乘以 100000 就是 100万条
-    private static final int DATA_MULTIPLIER = 10000;
+    // 生产中用1
+    private static final int DATA_MULTIPLIER = 1;
 
     // 定时任务调度器 (单线程即可)
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
@@ -107,7 +108,7 @@ public class GpuSearchService {
 
     // ================== 生命周期与业务逻辑 ==================
 
-    // @PostConstruct
+    @PostConstruct
     public void init() {
         System.out.println(">>> [Service] 初始化 GPU 搜索服务...");
 

@@ -12,6 +12,7 @@ import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.concurrent.*;
 
 @SpringBootApplication(scanBasePackages = {"com.example.seckill"}) // 扫描common包
@@ -40,7 +41,7 @@ public class SearchApplication {
             System.out.println(">>> 等待 0.5秒 确保预热完成...");
             Thread.sleep(500);
 
-            int threads = 100; // 并发数，对应你的 C++ 资源池大小
+            int threads = 1; // 并发数，对应你的 C++ 资源池大小
             ExecutorService executor = Executors.newFixedThreadPool(threads);
 
             // 这是一个"发令枪"，确保 3 个线程同时起跑
@@ -82,13 +83,14 @@ public class SearchApplication {
                         //         threadId, (end - start)));
 
                         // LLM测试代码
-                        String userPrompt = "商品标题：小米手机"+"\n商品简介：拍照手机、高性能手机";
+                        String userPrompt = "商品标题：苹果耳机"+"\n商品简介：airpods pro 2代，非凡音质";
                         String formattedPrompt =
-                                        "你是一个电商搜索优化专家。请根据商品标题和简介，扩展生成一行5-10个中文搜索关键词，绝对不要分段，绝对不要编号，要求包含同义词，功能词，场景词等简短词汇。\n" +
+                                        "你是一个电商搜索优化专家。请根据商品标题和简介，扩展生成一行5-10个中文搜索关键词，不要分段，不要编号，关键词之间用逗号分隔，要求包含同义词，功能词，场景词等简短词汇。\n" +
                                         userPrompt;
-                        CompletableFuture<String> future = llmBatchService.asyncChat(formattedPrompt);
-                        String result = future.get(300, TimeUnit.SECONDS); // 设置个业务超时兜底
-                        System.out.println(result + "\n");
+                        CompletableFuture<LlmBatchService.futureRes> future = llmBatchService.asyncChatWordVec(formattedPrompt);
+                        List<String> result = future.get(300, TimeUnit.SECONDS).futureWord; // 设置个业务超时兜底
+                        float[] resultVec = future.get(300, TimeUnit.SECONDS).futureVec;
+                        System.out.println(result + "\n" + resultVec.length);
                     } catch (Exception e) {
                         e.printStackTrace();
                     }

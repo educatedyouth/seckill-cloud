@@ -25,6 +25,14 @@ JNIEXPORT jobjectArray JNICALL Java_com_example_seckill_search_service_LlmNative
 
 /*
  * Class:     com_example_seckill_search_service_LlmNativeService
+ * Method:    getBatchEmbeddings
+ * Signature: ([Ljava/lang/String;)[F
+ */
+JNIEXPORT jfloatArray JNICALL Java_com_example_seckill_search_service_LlmNativeService_getBatchEmbeddings
+  (JNIEnv *, jobject, jobjectArray);
+
+/*
+ * Class:     com_example_seckill_search_service_LlmNativeService
  * Method:    freeModel
  * Signature: ()V
  */

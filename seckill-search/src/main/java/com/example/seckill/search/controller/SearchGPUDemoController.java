@@ -65,4 +65,26 @@ public class SearchGPUDemoController {
 
         return consoleLog.toString().replace("\n", "<br/>");
     }
+
+    @GetMapping("/normAll")
+    public void normAll(){
+        System.out.println("Begin Normed All");
+        Iterable<GoodsDoc> allDocs = goodsRepository.findAll();
+        List<GoodsDoc> sourceList = new ArrayList<>();
+        allDocs.forEach(sourceList::add);
+        for(var tmp:sourceList){
+            // 2. 原始类型循环计算
+            float sum = 0.0f;
+            for (float v : tmp.getEmbeddingVector()) {
+                sum += v * v;
+            }
+            float norm = (float) Math.sqrt(sum);
+            List<Float>normedVec = new ArrayList<>();
+            for(int i = 0; i < tmp.getEmbeddingVector().size();i++){
+                normedVec.add(tmp.getEmbeddingVector().get(i)/norm);
+            }
+            tmp.setEmbeddingVector(normedVec);
+            goodsRepository.save(tmp);
+        }
+    }
 }

@@ -23,6 +23,8 @@ import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.math.BigDecimal;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -42,7 +44,9 @@ public class SearchService {
     // AI 服务
     @Autowired
     private LlmService llmService;
-
+    // AI 服务
+    @Autowired
+    private LlmBatchService llmBatchService;
     /**
      * 阶段一：基础同步 (Fast)
      * 仅负责将 MySQL 数据搬运到 ES，不进行任何 AI 调用
@@ -98,6 +102,46 @@ public class SearchService {
      * 阶段二：AI 增强 (Slow)
      * 异步调用，执行耗时的 LLM 和 Embedding
      */
+    public void syncAiStrategyBatch(Long spuId) {
+        // 1. 先从 ES 查询现有的文档 (避免再次调用 Feign，或者为了数据新鲜度也可以调 Feign，这里查 ES 即可)
+        // 注意：Optional 处理
+        GoodsDoc doc = goodsRepository.findById(spuId).orElse(null);
+        if (doc == null) {
+            log.warn(">>> [AI增强] 未找到商品文档，可能已被删除，停止增强 spuId={}", spuId);
+            return;
+        }
+
+        try {
+            long start = System.currentTimeMillis();
+            String userPrompt = "商品标题："+doc.getTitle()+"\n商品简介："+doc.getSubTitle();
+            String formattedPrompt =
+                    "你是一个电商搜索优化专家。请根据商品标题和简介，扩展生成一行5-10个中文搜索关键词，不要分段，不要编号，关键词之间用逗号分隔，要求包含同义词，功能词，场景词等简短词汇。\n" +
+                            userPrompt;
+            // 2. 生成关键词
+            // 3. 生成向量
+            CompletableFuture<LlmBatchService.futureRes> future = llmBatchService.asyncChatWordVec(formattedPrompt);
+            List<String> resultWord = future.get(300, TimeUnit.SECONDS).futureWord;
+            System.out.println(resultWord);
+            doc.setAiKeywords(resultWord);
+            float[] resultVec = future.get(300, TimeUnit.SECONDS).futureVec;
+            List<Float> list = new ArrayList<>(resultVec.length);
+            for (float f : resultVec) {
+                list.add(f); // 这里会发生自动装箱 (float -> Float)
+            }
+            if (list.size() == 1024) {
+                doc.setEmbeddingVector(list);
+            }
+
+            // 4. 更新 ES (这里是 Update 操作)
+            goodsRepository.save(doc);
+            log.info(">>> [阶段2] AI 增强完成 ({}ms) | spuId={}", (System.currentTimeMillis() - start), spuId);
+
+        } catch (Exception e) {
+            log.error(">>> [AI增强] 失败 spuId={}", spuId, e);
+            // AI 失败不回滚基础数据，保证商品依然在架
+        }
+    }
+
     public void syncAiStrategy(Long spuId) {
         // 1. 先从 ES 查询现有的文档 (避免再次调用 Feign，或者为了数据新鲜度也可以调 Feign，这里查 ES 即可)
         // 注意：Optional 处理

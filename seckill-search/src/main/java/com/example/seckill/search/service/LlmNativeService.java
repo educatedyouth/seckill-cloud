@@ -9,7 +9,7 @@ public class LlmNativeService {
     // input: 这是一个字符串数组，比如 ["标题1,简介1", "标题2,简介2"]
     // return: 对应的结果数组
     public native String[] batchInference(String[] prompts);
-
+    public native float[] getBatchEmbeddings(String[] cleanTexts);
     // 释放资源
     public native void freeModel();
 }

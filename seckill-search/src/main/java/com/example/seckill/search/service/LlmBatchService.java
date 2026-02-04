@@ -7,13 +7,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.*;
 
 @Service
 @Slf4j
 public class LlmBatchService {
-
     // ================= 配置参数 =================
     private static final int BATCH_SIZE_THRESHOLD = 24; // 批次阈值
     private static final int TIME_THRESHOLD_MS = 50;    // 时间阈值 (毫秒)
@@ -35,20 +36,41 @@ public class LlmBatchService {
     // 返回值是对应顺序的结果数组
     public native String[] batchInference(String[] prompts);
     public native boolean initModel(String modelPath, int gpuLayers, int contextSize, int maxBatchSize);
+    /**
+     * 根据清洗后的文本计算向量
+     * * @param cleanTexts Java端清洗过的文本数组
+     * @return 扁平化的向量数组。
+     * 大小 = cleanTexts.length * embeddingDim
+     * 第 i 个文本的向量位于索引 [i*dim, (i+1)*dim) 之间
+     */
+    public native float[] getBatchEmbeddings(String[] cleanTexts);
     // ================= 业务调用入口 =================
     /**
      * 外部业务调用此方法，立即获得一个 Future，不会阻塞
      */
-    public CompletableFuture<String> asyncChat(String prompt) {
+    public static class futureRes{
+        public List<String> futureWord;
+        public float[] futureVec;
+
+        public futureRes(List<String> word, float[] vec) {
+            futureWord = word;futureVec = vec;
+        }
+    }
+    public CompletableFuture<futureRes> asyncChatWordVec(String prompt) {
         LlmRequest request = new LlmRequest(prompt);
+        CompletableFuture<futureRes> combinedFuture = request.getFutureWord()
+                .thenCombine(request.getFutureVec(), futureRes::new);
+
         boolean success = requestQueue.offer(request);
         if (!success) {
-            // 队列满了（比如瞬间来了1万个请求），直接快速失败，或者走降级逻辑
-            request.getFuture().completeExceptionally(new RejectedExecutionException("LLM Queue Full"));
+            // 队列满时的快速失败
+            RejectedExecutionException e = new RejectedExecutionException("LLM Queue Full");
+            request.getFutureWord().completeExceptionally(e);
+            request.getFutureVec().completeExceptionally(e);
         }
-        return request.getFuture();
-    }
 
+        return combinedFuture;
+    }
     // ================= 核心调度循环 =================
     private void batchLoop() {
         while (running) {
@@ -104,7 +126,7 @@ public class LlmBatchService {
             // 2. JNI 调用 C++ 推理 (耗时操作)
             // 注意：此时 C++ 端已经修改为支持 2048 长度，R1 会输出完整的思考过程
             String[] outputs = batchInference(inputs);
-
+            String[] cleanResults = new String[batch.size()];
             // 3. 结果清洗与分发
             if (outputs != null && outputs.length == batch.size()) {
                 for (int i = 0; i < batch.size(); i++) {
@@ -123,8 +145,27 @@ public class LlmBatchService {
                     else if (rawOutput.contains("<think>")) {
                         cleanResult = ""; // 没想完，通常结果不可用
                     }
-
-                    batch.get(i).getFuture().complete(cleanResult);
+                    // 标点归一化
+                    cleanResult = cleanResult.replace("\n", ",").replace("，", ",").replace("。", "").replace(" ",",");
+                    cleanResults[i] = cleanResult;
+                    String[] splits = cleanResult.split(",");
+                    List<String> keywords = new ArrayList<>();
+                    Set<String>set = new HashSet<>();
+                    for (String s : splits) {
+                        String k = s.trim();
+                        if (k.length() > 1 && !set.contains(k)) {
+                            set.add(k);
+                            keywords.add(k);
+                        }
+                    }
+                    batch.get(i).getFutureWord().complete(keywords);
+                }
+                float[] batchEmbeddings = getBatchEmbeddings(cleanResults);
+                for (int i = 0; i < batch.size(); i++) {
+                    int offset = i * GpuSearchService.DIM;
+                    float[] tmpRes = new float[GpuSearchService.DIM];
+                    System.arraycopy(batchEmbeddings, offset, tmpRes, 0, GpuSearchService.DIM);
+                    batch.get(i).getFutureVec().complete(tmpRes);
                 }
             } else {
                 throw new RuntimeException("C++ returned size mismatch or null");
@@ -132,7 +173,8 @@ public class LlmBatchService {
 
         } catch (Throwable t) {
             for (LlmRequest req : batch) {
-                req.getFuture().completeExceptionally(t);
+                req.getFutureWord().completeExceptionally(t);
+                req.getFutureVec().completeExceptionally(t);
             }
             log.error(">>> [LLM Batch] Native Inference Failed", t);
         }
@@ -143,6 +185,31 @@ public class LlmBatchService {
         // 加载 DLL
         String libPath = "D:\\JavaTest\\seckill-cloud\\seckill-search\\src\\main\\resources\\native-libs\\";
         // 加载 CUDA Runtime
+        System.load(libPath + "cudart64_12.dll");
+        System.out.println(">>> [JNI] cudart64 加载成功");
+
+        // 加载 CUDA BLAS Light (必须在 cublas 之前或一起)
+        System.load(libPath + "cublasLt64_12.dll");
+        System.out.println(">>> [JNI] cublasLt64 加载成功");
+
+        // 加载 CUDA BLAS (矩阵计算核心)
+        System.load(libPath + "cublas64_12.dll");
+        System.out.println(">>> [JNI] cublas64 加载成功");
+
+        System.load(libPath + "ggml-base.dll");
+        System.out.println(">>> [JNI] 依赖库 ggml-base.dll 加载成功！");
+
+        System.load(libPath + "ggml-cuda.dll");
+        System.out.println(">>> [JNI] 依赖库 ggml-cuda.dll 加载成功！");
+
+        System.load(libPath + "ggml-cpu.dll");
+        System.out.println(">>> [JNI] 依赖库 ggml-cuda.dll 加载成功！");
+
+        System.load(libPath + "ggml.dll");
+        System.out.println(">>> [JNI] 依赖库 ggml.dll 加载成功！");
+
+        System.load(libPath + "llama.dll");
+        System.out.println(">>> [JNI] 依赖库 llama.dll 加载成功！");
         System.load(libPath + "SeckillLlmService.dll");
         System.out.println(">>> [JNI] SeckillLlmService 加载成功");
         // 启动后台线程

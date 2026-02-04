@@ -25,7 +25,7 @@ public class GoodsAiListener implements RocketMQListener<String> {
         try {
             Long spuId = Long.valueOf(spuIdStr);
             // 调用慢逻辑
-            searchService.syncAiStrategy(spuId);
+            searchService.syncAiStrategyBatch(spuId);
         } catch (Exception e) {
             // AI 任务如果失败，可以根据策略决定是否重试。
             // 通常建议打印 Error 即可，不要死循环重试，因为 LLM 挂了可能一直挂。
