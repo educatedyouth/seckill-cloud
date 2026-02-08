@@ -17,7 +17,7 @@ import java.util.concurrent.*;
 public class LlmBatchService {
     // ================= 配置参数 =================
     private static final int BATCH_SIZE_THRESHOLD = 24; // 批次阈值
-    private static final int TIME_THRESHOLD_MS = 50;    // 时间阈值 (毫秒)
+    private static final int TIME_THRESHOLD_MS = 100;    // 时间阈值 (毫秒)
     private static final int MAX_QUEUE_SIZE = 10000;     // 队列最大积压数，防OOM
 
     // 线程安全的请求队列
@@ -213,8 +213,9 @@ public class LlmBatchService {
         System.load(libPath + "SeckillLlmService.dll");
         System.out.println(">>> [JNI] SeckillLlmService 加载成功");
         // 启动后台线程
-        String modelPath = "D:\\Hzj76\\Downloads\\DeepSeek-R1-Distill-Qwen-7B-Q4_K_M.gguf";
-        boolean success = initModel(modelPath, -1, 4096 * 4, BATCH_SIZE_THRESHOLD);
+        // String modelPath = "D:\\Hzj76\\Downloads\\DeepSeek-R1-Distill-Qwen-7B-Q4_K_M.gguf";
+        String modelPath = "D:\\Hzj76\\Downloads\\Qwen2.5-7B-Instruct-Q4_K_M.gguf";
+        boolean success = initModel(modelPath, -1, 4096*2, BATCH_SIZE_THRESHOLD);
 
         if (success) {
             log.info(">>> [LLM Service] 模型加载成功! GPU Layers: {}", -1);

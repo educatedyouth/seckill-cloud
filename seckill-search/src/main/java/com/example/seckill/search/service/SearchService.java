@@ -226,7 +226,12 @@ public class SearchService {
         if (StringUtils.hasText(param.getKeyword())) {
             try {
                 // 1. 获取 Float 类型的向量 (LlmService 返回 List<Float>)
-                List<Float> floatVector = llmService.getVector(param.getKeyword());
+                // List<Float> floatVector = llmService.getVector(param.getKeyword());
+                // mock
+                List<Float> floatVector = new ArrayList<>();
+                for(int i = 0; i < 1024; i++){
+                    floatVector.add(0.0f);
+                }
                 if (floatVector != null && floatVector.size() == 1024) {
                     // 2. 【核心修正】将 List<Float> 转换为 List<Double>
                     // ES Java Client 的 queryVector 方法只接受 List<Double>
@@ -341,100 +346,139 @@ public class SearchService {
             return emptyResult(param);
         }
 
-        // -------------------------------------------------------
-        // 3. 构建 ES 请求 (Fetch Details & Filter)
-        // -------------------------------------------------------
-        // 将 long[] 转为 List<FieldValue> 供 ES Client 使用
-        List<Long> gpuIdList = Arrays.stream(topIds).boxed().toList();
-        List<FieldValue> esIds = gpuIdList.stream().map(FieldValue::of).collect(Collectors.toList());
+        // // -------------------------------------------------------
+        // // 3. 构建 ES 请求 (Fetch Details & Filter)
+        // // -------------------------------------------------------
+        // // 将 long[] 转为 List<FieldValue> 供 ES Client 使用
+        // List<Long> gpuIdList = Arrays.stream(topIds).boxed().toList();
+        // List<FieldValue> esIds = gpuIdList.stream().map(FieldValue::of).collect(Collectors.toList());
+        //
+        // // 复用你原有的 Filter 逻辑
+        // List<co.elastic.clients.elasticsearch._types.query_dsl.Query> filters = buildFilters(param);
+        //
+        // SearchRequest.Builder searchBuilder = new SearchRequest.Builder()
+        //         .index("goods")
+        //         .size(GPU_RECALL_SIZE); // 这里的 size 要足够大，把命中的 id 信息都查出来
+        //
+        // // 构建查询：ID 必须在 GPU 结果中 + 满足业务过滤条件
+        // // 1. 先构建最里面的 terms 查询 (WHERE id IN ...)
+        // Query termsQuery = Query.of(q -> q.terms(
+        //         t -> t.field("id")
+        //         .terms(ts -> ts.value(esIds))
+        // ));
+        //
+        // // 2. 构建 bool 查询的 builder
+        // Query boolQuery = Query.of(q -> q.bool(
+        //         b -> b.must(termsQuery)   // 把上面的 terms 塞进来
+        //         .filter(filters)    // 把之前的 filters 列表塞进来
+        // ));
+        //
+        // // 3. 最后塞给 searchBuilder
+        // searchBuilder.query(boolQuery);
+        //
+        // // 加上高亮 (复用原有逻辑)
+        // addHighlight(searchBuilder);
+        // // -------------------------------------------------------
+        // // 4. 执行 ES 查询
+        // // -------------------------------------------------------
+        // try {
+        //     SearchResponse<GoodsDoc> response = elasticsearchClient.search(searchBuilder.build(), GoodsDoc.class);
+        //
+        //     // 将 ES 结果转为 Map，方便 O(1) 查找
+        //     Map<Long, GoodsDoc> productMap = response.hits().hits().stream()
+        //             .map(hit -> {
+        //                 GoodsDoc doc = hit.source();
+        //                 // 处理高亮
+        //                 if (doc != null && hit.highlight().containsKey("title")) {
+        //                     doc.setTitle(hit.highlight().get("title").get(0));
+        //                 }
+        //                 return doc;
+        //             })
+        //             .filter(Objects::nonNull)
+        //             .collect(Collectors.toMap(GoodsDoc::getId, doc -> doc, (v1, v2) -> v1)); // 防止重复 key
+        //
+        //     // -------------------------------------------------------
+        //     // 5. 核心：重排序 (Re-rank) & 内存分页
+        //     // -------------------------------------------------------
+        //     // 为什么要做这一步？因为 ES 返回的顺序不一定是 GPU 的相似度顺序，
+        //     // 且 ES 过滤掉了部分不满足 brand/price 的商品。
+        //
+        //     List<GoodsDoc> orderedList = new ArrayList<>();
+        //     for (long id : topIds) {
+        //         // 按照 GPU 返回的顺序，依次从 Map 中取值
+        //         // 如果 Map 中没有，说明该商品被 filter 过滤掉了（比如价格不匹配）
+        //         if (productMap.containsKey(id)) {
+        //             orderedList.add(productMap.get(id));
+        //         }
+        //     }
+        //
+        //     // 计算分页
+        //     int totalHits = orderedList.size();
+        //     int fromIndex = (param.getPageNum() - 1) * param.getPageSize();
+        //     int toIndex = Math.min(fromIndex + param.getPageSize(), totalHits);
+        //
+        //     List<GoodsDoc> pageList;
+        //     if (fromIndex >= totalHits) {
+        //         pageList = new ArrayList<>(); // 页码超出了
+        //     } else {
+        //         pageList = orderedList.subList(fromIndex, toIndex);
+        //     }
+        //
+        //     // -------------------------------------------------------
+        //     // 6. 封装返回结果
+        //     // -------------------------------------------------------
+        //     result.setProductList(pageList);
+        //     result.setTotal((long) totalHits);
+        //     result.setPageNum(param.getPageNum());
+        //     long totalPages = totalHits % param.getPageSize() == 0 ? totalHits / param.getPageSize() : totalHits / param.getPageSize() + 1;
+        //     result.setTotalPages((int) totalPages);
+        //
+        //     log.info("GPU Search: Keyword={}, GPU_Top={}, Filtered_Valid={}, Page_Size={}",
+        //             param.getKeyword(), topIds.length, totalHits, pageList.size());
+        //
+        // } catch (Exception e) {
+        //     log.error("ES 查询详情失败", e);
+        //     return emptyResult(param);
+        // }
 
-        // 复用你原有的 Filter 逻辑
-        List<co.elastic.clients.elasticsearch._types.query_dsl.Query> filters = buildFilters(param);
+        // 直接走本地缓存查询
+        // 3. 本地内存查详情 (内存直读，0ms，无网络 IO)
+        // 替代了原有的 build ES query -> elasticsearchClient.search
+        List<GoodsDoc> gpuDocs = gpuSearchService.getDocsLocally(topIds);
 
-        SearchRequest.Builder searchBuilder = new SearchRequest.Builder()
-                .index("goods")
-                .size(GPU_RECALL_SIZE); // 这里的 size 要足够大，把命中的 id 信息都查出来
-
-        // 构建查询：ID 必须在 GPU 结果中 + 满足业务过滤条件
-        // 1. 先构建最里面的 terms 查询 (WHERE id IN ...)
-        Query termsQuery = Query.of(q -> q.terms(
-                t -> t.field("id")
-                .terms(ts -> ts.value(esIds))
-        ));
-
-        // 2. 构建 bool 查询的 builder
-        Query boolQuery = Query.of(q -> q.bool(
-                b -> b.must(termsQuery)   // 把上面的 terms 塞进来
-                .filter(filters)    // 把之前的 filters 列表塞进来
-        ));
-
-        // 3. 最后塞给 searchBuilder
-        searchBuilder.query(boolQuery);
-
-        // 加上高亮 (复用原有逻辑)
-        addHighlight(searchBuilder);
-        // -------------------------------------------------------
-        // 4. 执行 ES 查询
-        // -------------------------------------------------------
-        try {
-            SearchResponse<GoodsDoc> response = elasticsearchClient.search(searchBuilder.build(), GoodsDoc.class);
-
-            // 将 ES 结果转为 Map，方便 O(1) 查找
-            Map<Long, GoodsDoc> productMap = response.hits().hits().stream()
-                    .map(hit -> {
-                        GoodsDoc doc = hit.source();
-                        // 处理高亮
-                        if (doc != null && hit.highlight().containsKey("title")) {
-                            doc.setTitle(hit.highlight().get("title").get(0));
-                        }
-                        return doc;
-                    })
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toMap(GoodsDoc::getId, doc -> doc, (v1, v2) -> v1)); // 防止重复 key
-
-            // -------------------------------------------------------
-            // 5. 核心：重排序 (Re-rank) & 内存分页
-            // -------------------------------------------------------
-            // 为什么要做这一步？因为 ES 返回的顺序不一定是 GPU 的相似度顺序，
-            // 且 ES 过滤掉了部分不满足 brand/price 的商品。
-
-            List<GoodsDoc> orderedList = new ArrayList<>();
-            for (long id : topIds) {
-                // 按照 GPU 返回的顺序，依次从 Map 中取值
-                // 如果 Map 中没有，说明该商品被 filter 过滤掉了（比如价格不匹配）
-                if (productMap.containsKey(id)) {
-                    orderedList.add(productMap.get(id));
-                }
+        // 4. 手动实现业务过滤 (模拟 ES 的 Filter)
+        // 因为不走 ES 了，必须在 Java 层过滤 Brand/Category/Price
+        List<GoodsDoc> filteredDocs = gpuDocs.stream().filter(doc -> {
+            // 品牌过滤
+            if (param.getBrandId() != null && !param.getBrandId().equals(doc.getBrandId())) return false;
+            // 分类过滤
+            if (param.getCategoryId() != null && !param.getCategoryId().equals(doc.getCategoryId())) return false;
+            // 价格过滤
+            if (doc.getPrice() != null) {
+                if (param.getPriceStart() != null && doc.getPrice().doubleValue() < param.getPriceStart()) return false;
+                if (param.getPriceEnd() != null && doc.getPrice().doubleValue() > param.getPriceEnd()) return false;
             }
+            return true;
+        }).collect(Collectors.toList());
 
-            // 计算分页
-            int totalHits = orderedList.size();
-            int fromIndex = (param.getPageNum() - 1) * param.getPageSize();
-            int toIndex = Math.min(fromIndex + param.getPageSize(), totalHits);
+        // 5. 分页逻辑 (内存分页)
+        int totalHits = filteredDocs.size();
+        int fromIndex = (param.getPageNum() - 1) * param.getPageSize();
+        int toIndex = Math.min(fromIndex + param.getPageSize(), totalHits);
 
-            List<GoodsDoc> pageList;
-            if (fromIndex >= totalHits) {
-                pageList = new ArrayList<>(); // 页码超出了
-            } else {
-                pageList = orderedList.subList(fromIndex, toIndex);
-            }
-
-            // -------------------------------------------------------
-            // 6. 封装返回结果
-            // -------------------------------------------------------
-            result.setProductList(pageList);
-            result.setTotal((long) totalHits);
-            result.setPageNum(param.getPageNum());
-            long totalPages = totalHits % param.getPageSize() == 0 ? totalHits / param.getPageSize() : totalHits / param.getPageSize() + 1;
-            result.setTotalPages((int) totalPages);
-
-            log.info("GPU Search: Keyword={}, GPU_Top={}, Filtered_Valid={}, Page_Size={}",
-                    param.getKeyword(), topIds.length, totalHits, pageList.size());
-
-        } catch (Exception e) {
-            log.error("ES 查询详情失败", e);
-            return emptyResult(param);
+        List<GoodsDoc> pageList;
+        if (fromIndex >= totalHits) {
+            pageList = new ArrayList<>();
+        } else {
+            pageList = filteredDocs.subList(fromIndex, toIndex);
         }
+
+        // 6. 封装结果
+        result.setProductList(pageList);
+        result.setTotal((long) totalHits);
+        result.setPageNum(param.getPageNum());
+        long totalPages = totalHits % param.getPageSize() == 0 ? totalHits / param.getPageSize() : totalHits / param.getPageSize() + 1;
+        result.setTotalPages((int) totalPages);
 
         return result;
     }

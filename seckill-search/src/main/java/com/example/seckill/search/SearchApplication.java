@@ -41,7 +41,7 @@ public class SearchApplication {
             System.out.println(">>> 等待 0.5秒 确保预热完成...");
             Thread.sleep(500);
 
-            int threads = 1; // 并发数，对应你的 C++ 资源池大小
+            int threads = 100; // 并发数，对应你的 C++ 资源池大小
             ExecutorService executor = Executors.newFixedThreadPool(threads);
 
             // 这是一个"发令枪"，确保 3 个线程同时起跑
@@ -91,6 +91,9 @@ public class SearchApplication {
                         List<String> result = future.get(300, TimeUnit.SECONDS).futureWord; // 设置个业务超时兜底
                         float[] resultVec = future.get(300, TimeUnit.SECONDS).futureVec;
                         System.out.println(result + "\n" + resultVec.length);
+                        long end = System.currentTimeMillis();
+                        System.out.println(String.format("=== 线程-%d 完成, 耗时: %dms ===",
+                                threadId, (end - start)));
                     } catch (Exception e) {
                         e.printStackTrace();
                     }

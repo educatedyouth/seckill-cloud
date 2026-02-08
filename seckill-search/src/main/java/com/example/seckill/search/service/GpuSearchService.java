@@ -7,8 +7,14 @@ import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.FloatBuffer;
+import java.nio.LongBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -19,15 +25,18 @@ import java.util.concurrent.TimeUnit;
  */
 @Service
 public class GpuSearchService {
-
+    // 预分配堆外缓存
+    private FloatBuffer vectorsBuffer;
+    private LongBuffer idsBuffer;
     // ================== 配置常量 ==================
     // 最大容量：200万 (根据你的显存大小调整，FP16下 200万 * 1024 维约占 4GB 显存)
-    private static final int MAX_CAPACITY = 1_000;
+    private static final int MAX_CAPACITY = 100_0000;
     // 向量维度：与 C++ 和 Embedding 模型保持一致
     public static final int DIM = 1024;
     // 模拟数据倍增系数：如果 DB 只有 10 条，乘以 100000 就是 100万条
     // 生产中用1
-    private static final int DATA_MULTIPLIER = 1;
+    private static final int DATA_MULTIPLIER = 100_0000;
+    public static final Map<Long, GoodsDoc> LOCAL_DATA_CACHE = new ConcurrentHashMap<>(MAX_CAPACITY);
 
     // 定时任务调度器 (单线程即可)
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
@@ -93,7 +102,8 @@ public class GpuSearchService {
      * 将数据写入备用 Buffer 并原子切换
      */
     public native void hotUpdate(long[] ids, float[] flatVectors, int rows, int dim);
-
+    // JNI零拷贝接收 Buffer 对象
+    public native void hotUpdateDirect(Object idsBuf, Object vectorsBuf, int rows, int dim);
     /**
      * 3. 执行搜索
      * 对应 C++: Java_..._search
@@ -108,17 +118,25 @@ public class GpuSearchService {
 
     // ================== 生命周期与业务逻辑 ==================
 
-    @PostConstruct
+    // @PostConstruct
     public void init() {
         System.out.println(">>> [Service] 初始化 GPU 搜索服务...");
 
         // 1. 初始化 GPU 显存结构 (此时不加载数据)
         // 这一步会分配两块 MAX_CAPACITY 大小的显存
         this.initDualBuffer(MAX_CAPACITY, DIM);
-
+        // 分配堆外内存: 字节数 = 容量 * 维度 * 4字节(float)
+        // 必须设置 nativeOrder，否则 C++ 读取字节序可能不一致
+        // vectorsBuffer = ByteBuffer.allocateDirect(MAX_CAPACITY * DIM * 4)
+        //         .order(ByteOrder.nativeOrder())
+        //         .asFloatBuffer();
+        //
+        // idsBuffer = ByteBuffer.allocateDirect(MAX_CAPACITY * 8) // long 为 8 字节
+        //         .order(ByteOrder.nativeOrder())
+        //         .asLongBuffer();
         // 2. 立即执行一次全量数据加载
         refreshDataTask();
-
+        this.initDualBuffer(MAX_CAPACITY, DIM);
         // 3. 开启定时热更新任务 (例如：启动 5 分钟后开始，每 5 分钟执行一次)
         scheduler.scheduleAtFixedRate(this::refreshDataTask, 5, 10, TimeUnit.MINUTES);
 
@@ -160,7 +178,7 @@ public class GpuSearchService {
                 System.err.println(">>> [Task] 警告：数据量 (" + totalRows + ") 超过 GPU 容量限制 (" + MAX_CAPACITY + ")，将进行截断。");
                 totalRows = MAX_CAPACITY;
             }
-
+            LOCAL_DATA_CACHE.clear();
             // 3. 准备大数组 (Java Heap -> Pinned Memory 的源头)
             long[] ids = new long[totalRows];
             float[] flatVectors = new float[totalRows * DIM];
@@ -170,7 +188,8 @@ public class GpuSearchService {
             for (int i = 0; i < totalRows; i++) {
                 // 取模循环：0, 1, 2 ... N, 0, 1 ...
                 GoodsDoc doc = sourceList.get(i % sourceList.size());
-
+                // 为了防止内存溢出，生产环境建议只存必要字段，这里直接存 doc
+                LOCAL_DATA_CACHE.put(doc.getId(), doc);
                 // 生成唯一 ID (为了压测区分，我们用 i 作为 ID，或者用 doc.getId() + 偏移量)
                 // 生产环境直接用: ids[i] = doc.getId();
                 ids[i] = doc.getId();
@@ -186,12 +205,25 @@ public class GpuSearchService {
                 }
             }
 
+            // 清空并填充堆外内存
+            // vectorsBuffer.clear();
+            // idsBuffer.clear();
+            //
+            // for (int i = 0; i < totalRows; i++) {
+            //     GoodsDoc doc = sourceList.get(i % sourceList.size());
+            //     idsBuffer.put(doc.getId());
+            //
+            //     List<Float> vec = doc.getEmbeddingVector();
+            //     for (int j = 0; j < DIM; j++) {
+            //         vectorsBuffer.put(vec.get(j));
+            //     }
+            // }
             long parseTime = System.currentTimeMillis();
             System.out.println(String.format(">>> [Task] 数据准备完成 (Java端). 耗时: %dms. 开始推送到 GPU...", (parseTime - startTime)));
 
-            // 5. 🚀 调用 JNI 热更新接口
-            // 这个过程会将数据拷贝到 GPU 的 Standby Buffer，然后原子切换
-            this.hotUpdate(ids, flatVectors, totalRows, DIM);
+            // 5. 🚀 调用 JNI 热更新接口的零拷贝接口
+            // this.hotUpdateDirect(idsBuffer, vectorsBuffer, totalRows, DIM);
+            this.hotUpdate(ids,flatVectors,totalRows,DIM);
 
             long endTime = System.currentTimeMillis();
             System.out.println(String.format(">>> [Task] 热更新成功！当前 GPU 商品数: %d, 总耗时: %dms", totalRows, (endTime - startTime)));
@@ -212,5 +244,18 @@ public class GpuSearchService {
         } catch (Exception e) {
             System.err.println(">>> [Warmup] 预热失败 (非致命): " + e.getMessage());
         }
+    }
+    /**
+     * 【新增】极速详情查询接口 (走本地内存)
+     */
+    public List<GoodsDoc> getDocsLocally(long[] ids) {
+        List<GoodsDoc> list = new ArrayList<>(ids.length);
+        for (long id : ids) {
+            GoodsDoc doc = LOCAL_DATA_CACHE.get(id);
+            if (doc != null) {
+                list.add(doc);
+            }
+        }
+        return list;
     }
 }
