@@ -1,5 +1,6 @@
 package com.example.seckill.order.service.impl;
 
+import cn.hutool.json.JSONUtil;
 import com.example.seckill.common.context.UserContext;
 import com.example.seckill.common.dto.SeckillOrderMsgDTO;
 import com.example.seckill.common.dto.SeckillSubmitDTO;
@@ -8,17 +9,15 @@ import com.example.seckill.common.utils.SnowflakeIdWorker;
 import com.example.seckill.order.config.RocketMQConfig;
 import com.example.seckill.order.service.SeckillService;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.rocketmq.client.producer.LocalTransactionState;
+import org.apache.rocketmq.client.producer.TransactionSendResult;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.messaging.Message;
 import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Service;
 
-import jakarta.annotation.PostConstruct;
-import java.util.Collections;
-import java.util.List;
+import java.math.BigDecimal;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
@@ -26,84 +25,64 @@ import java.util.concurrent.ConcurrentHashMap;
 public class SeckillServiceImpl implements SeckillService {
 
     @Autowired
-    private StringRedisTemplate stringRedisTemplate;
-
-    @Autowired
     private RocketMQTemplate rocketMQTemplate;
 
     @Autowired
     private RocketMQConfig rocketMQConfig;
 
-    private DefaultRedisScript<Long> seckillScript;
-
     // JVM 本地库存标记 (降级开关)
     private final ConcurrentHashMap<Long, Boolean> stockMap = new ConcurrentHashMap<>();
 
-    @PostConstruct
-    public void init() {
-        seckillScript = new DefaultRedisScript<>();
-        seckillScript.setResultType(Long.class);
-        seckillScript.setLocation(new ClassPathResource("seckill_stock.lua"));
-    }
-
     @Override
     public Result<String> processSeckillRequest(SeckillSubmitDTO submitDTO) {
-        // 1. 【安全修正】从上下文获取用户ID，严禁硬编码
         Long userId = UserContext.getUserId();
         if (userId == null) {
             return Result.error("用户未登录");
         }
-
         Long skuId = submitDTO.getSkuId();
 
-        // 2. 【JVM 内存拦截】
+        // 1. 【JVM 内存拦截】快速失败
         if (stockMap.containsKey(skuId) && !stockMap.get(skuId)) {
             return Result.error("商品已售罄 (Local)");
         }
 
-        // 3. 【Redis Lua 原子扣减】
-        // KEYS[1]: seckill:stock:{skuId}
-        // KEYS[2]: seckill:order:done:{userId}:{skuId}
-        String stockKey = "seckill:stock:" + skuId;
-        String dupKey = "seckill:order:done:" + userId + ":" + skuId;
-        List<String> scriptKeys = List.of(stockKey, dupKey);
-
-        // 执行脚本 (-1:没货, -2:重复, 1:成功)
-        Long result = stringRedisTemplate.execute(seckillScript, scriptKeys);
-
-        if (result == null) return Result.error("抢购过于火爆，请重试");
-        // if (result == -2) return Result.error("您已抢购成功，请勿重复下单");
-        if (result == -1) {
-            stockMap.put(skuId, false); // 标记本地无货
-            return Result.error("商品已售罄");
-        }
-
-        // 4. 【MQ 异步下单】
-        // 生成基因ID
+        // 2. 准备消息数据
+        // 生成订单ID
         long orderId = SnowflakeIdWorker.getInstance().nextId(userId);
 
-        // 组装消息 (不传价格，价格由Consumer查库决定，防止前端篡改)
+        // 构建消息体 (包含价格，避免Consumer查库)
         SeckillOrderMsgDTO msgDTO = new SeckillOrderMsgDTO();
         msgDTO.setUserId(userId);
         msgDTO.setSkuId(skuId);
         msgDTO.setOrderId(orderId);
-        // msgDTO.setActivityId(...);
+        // TODO: 实际项目中，价格应从 Redis 缓存获取或通过签名参数传入，此处模拟固定价格
+        // msgDTO.setPrice(redisService.getPrice(skuId));
+        msgDTO.setOrderPrice(28999L);
 
         String topic = rocketMQConfig.getOrderTopic();
-        try {
-            // 发送普通消息即可，因为Redis已经扣减成功，必须尝试发消息
-            // 如果发消息失败，这属于极端异常，会导致“少卖”（Redis扣了但没生成订单）
-            // 企业级方案通常会加一个“本地消息表”来兜底，或者简单的 Catch 异常后回滚 Redis
-            rocketMQTemplate.syncSend(topic, MessageBuilder.withPayload(msgDTO).build());
-            log.info(">>> 秒杀排队成功, orderId={}, userId={}", orderId, userId);
-        } catch (Exception e) {
-            log.error(">>> MQ发送失败，执行回滚 Redis", e);
-            // 【回滚逻辑】: 恢复 Redis 库存，删除重复购买标记
-            stringRedisTemplate.opsForValue().increment(stockKey);
-            stringRedisTemplate.delete(dupKey);
-            return Result.error("抢购失败，请重试");
-        }
+        Message<String> message = MessageBuilder.withPayload(JSONUtil.toJsonStr(msgDTO)).build();
 
-        return Result.success(String.valueOf(orderId));
+        try {
+            // 3. 【发送事务消息】
+            // 这里的第三个参数 arg 可以传递给 listener，我们传 null 即可，因为信息都在 msgDTO 里
+            TransactionSendResult sendResult = rocketMQTemplate.sendMessageInTransaction(topic, message, null);
+
+            // 4. 【判断结果】
+            // sendMessageInTransaction 会等待 executeLocalTransaction 执行完毕
+            if (sendResult.getLocalTransactionState() == LocalTransactionState.COMMIT_MESSAGE) {
+                log.info(">>> 秒杀成功，事务消息已提交. orderId={}", orderId);
+                return Result.success(String.valueOf(orderId));
+            } else {
+                // ROLLBACK 可能是库存不足，也可能是重复购买
+                log.warn(">>> 秒杀失败 (库存不足或重复下单). orderId={}", orderId);
+                // 标记本地库存可能售罄 (这里可以做得更细，根据 header 区分是无货还是重购)
+                // stockMap.put(skuId, false);
+                return Result.error("抢购失败");
+            }
+
+        } catch (Exception e) {
+            log.error(">>> 系统异常", e);
+            return Result.error("系统繁忙，请重试");
+        }
     }
 }

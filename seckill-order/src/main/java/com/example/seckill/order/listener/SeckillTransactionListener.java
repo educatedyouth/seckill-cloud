@@ -1,99 +1,114 @@
 package com.example.seckill.order.listener;
 
-import org.apache.rocketmq.client.producer.LocalTransactionState;
-import org.apache.rocketmq.client.producer.TransactionListener;
-import org.apache.rocketmq.common.message.Message;
-import org.apache.rocketmq.common.message.MessageExt;
+import cn.hutool.json.JSONUtil;
+import com.example.seckill.common.dto.SeckillOrderMsgDTO;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.rocketmq.spring.annotation.RocketMQTransactionListener;
+import org.apache.rocketmq.spring.core.RocketMQLocalTransactionListener;
+import org.apache.rocketmq.spring.core.RocketMQLocalTransactionState;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.messaging.Message;
 import org.springframework.stereotype.Component;
-import redis.clients.jedis.Jedis;
-import redis.clients.jedis.JedisPool;
 
-import java.util.Collections;
+import jakarta.annotation.PostConstruct;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 /**
- * 事务监听器
- * 作用：处理 RocketMQ 事务消息的“本地执行”和“状态回查”两个阶段
+ * 秒杀事务消息监听器
+ * 核心作用：将 Redis 扣减与 MQ 发送绑定为原子操作
  */
-@Component // 注册为 Spring 组件，这样才能被 RocketMQConfig 注入
-public class SeckillTransactionListener implements TransactionListener {
+@Slf4j
+@Component
+@RocketMQTransactionListener // 自动关联 RocketMQTemplate
+public class SeckillTransactionListener implements RocketMQLocalTransactionListener {
 
     @Autowired
-    private JedisPool jedisPool; // 注入 Redis 连接池，用于操作 Redis
+    private StringRedisTemplate stringRedisTemplate;
 
-    // Lua 脚本：保证“检查库存”、“扣减库存”、“记录流水”这三步操作是原子性的
-    // 类似于数据库的锁，防止超卖
-    private static final String LUA_SCRIPT =
-            "if tonumber(redis.call('get', KEYS[1])) > 0 then " + // 1. 判断库存(KEYS[1])是否大于0
-                    "   redis.call('decr', KEYS[1]); " +                  // 2. 如果够，库存减 1
-                    "   redis.call('set', KEYS[2], '1'); " +              // 3. 记录事务流水(KEYS[2])，标记这笔单子锁库成功
-                    "   redis.call('expire', KEYS[2], 600); " +           // 4. 流水设置 10 分钟过期(够回查用了)
-                    "   return 1; " +                                     // 5. 返回 1 表示成功
-                    "else " +
-                    "   return 0; " +                                     // 6. 库存不够，返回 0 表示失败
-                    "end";
+    private DefaultRedisScript<Long> seckillScript;
+
+    @PostConstruct
+    public void init() {
+        seckillScript = new DefaultRedisScript<>();
+        seckillScript.setResultType(Long.class);
+        seckillScript.setLocation(new ClassPathResource("seckill_stock.lua"));
+    }
 
     /**
      * 【阶段一：执行本地事务】
-     * 触发时机：当你的代码调用 producer.sendMessageInTransaction(...) 并且 Broker 成功收到 Half 消息后
-     * * @param msg 消息对象
-     * @param arg 发送消息时传递的参数 (这里我们传的是 transactionKey)
-     * @return 事务状态 (COMMIT提交 / ROLLBACK回滚 / UNKNOW未知)
+     * 收到 Half Message 后回调此方法。在这里执行 Redis 扣减。
      */
     @Override
-    public LocalTransactionState executeLocalTransaction(Message msg, Object arg) {
-        String transactionKey = (String) arg; // 取出流水号，如: tx:1001:user123
-        String stockKey = "stock:" + msg.getUserProperty("goodsId"); // 取出库存 Key，如: stock:1001
+    public RocketMQLocalTransactionState executeLocalTransaction(Message msg, Object arg) {
+        try {
+            // 1. 解析消息
+            String bodyJson = new String((byte[]) msg.getPayload(), StandardCharsets.UTF_8);
+            SeckillOrderMsgDTO msgDTO = JSONUtil.toBean(bodyJson, SeckillOrderMsgDTO.class);
+            Long userId = msgDTO.getUserId();
+            Long skuId = msgDTO.getSkuId();
 
-        try (Jedis jedis = jedisPool.getResource()) { // 获取 Redis 连接
-            // 执行 Lua 脚本
-            Object result = jedis.eval(LUA_SCRIPT,
-                    java.util.Arrays.asList(stockKey, transactionKey), // 对应脚本里的 KEYS[1], KEYS[2]
-                    Collections.emptyList());
+            // 2. 准备 Redis Key
+            String stockKey = "seckill:stock:" + skuId;
+            String dupKey = "seckill:order:done:" + userId + ":" + skuId;
+            List<String> keys = List.of(stockKey, dupKey);
 
-            if ("1".equals(result.toString())) {
-                // Lua 返回 1：说明 Redis 扣减成功了
-                System.out.println("✅ [本地事务] Redis 扣库成功，提交消息: " + transactionKey);
-                // 告诉 MQ：本地成功了，你可以把消息发给消费者去写数据库了
-                return LocalTransactionState.COMMIT_MESSAGE;
+            // 3. 执行 Lua 脚本
+            // 返回值: 1=成功, -1=无库存, -2=重复购买, -3=Key不存在
+            Long result = stringRedisTemplate.execute(seckillScript, keys);
+
+            if (result != null && result != -1) {
+                log.info("✅ [本地事务] Redis扣减成功, 提交消息. orderId={}", msgDTO.getOrderId());
+                return RocketMQLocalTransactionState.COMMIT;
             } else {
-                // Lua 返回 0：说明库存不足
-                System.out.println("❌ [本地事务] 库存不足/失败，回滚消息: " + transactionKey);
-                // 告诉 MQ：本地失败了，把刚才那条半消息删掉吧，别发给消费者
-                return LocalTransactionState.ROLLBACK_MESSAGE;
+                if (result != null && result == -1) {
+                    log.warn("❌ [本地事务] 库存不足. skuId={}", skuId);
+                }
+                // 为了压测，允许重复下单
+                // else if (result != null && result == -2) {
+                //     log.warn("❌ [本地事务] 重复下单. userId={}", userId);
+                // }
+                // 扣减失败，回滚消息 (MQ 不会把消息发给 Consumer)
+                return RocketMQLocalTransactionState.ROLLBACK;
             }
+
         } catch (Exception e) {
-            e.printStackTrace();
-            // 如果 Redis 报错或者网络断了，我们无法确定到底扣没扣成功
-            // 返回 UNKNOW，让 MQ 过一会儿来调用下面的 checkLocalTransaction 查账
-            return LocalTransactionState.UNKNOW;
+            log.error(">>> 执行本地事务异常", e);
+            // 发生异常（如 Redis 连不上），为了保险起见，返回 ROLLBACK
+            // 或者返回 UNKNOWN 让 MQ 稍后回查（但对于秒杀，fail-fast 更好）
+            return RocketMQLocalTransactionState.ROLLBACK;
         }
     }
 
     /**
      * 【阶段二：事务回查】
-     * 触发时机：
-     * 1. executeLocalTransaction 返回了 UNKNOW
-     * 2. 或者 executeLocalTransaction 执行超时没有返回结果
-     * 3. 此时 Broker 会主动发请求询问生产者：“这笔单子到底成没成？”
+     * 如果 executeLocalTransaction 返回 UNKNOWN，或者超时未响应，MQ 会调用此方法。
+     * 检查 Redis 中是否有“购买成功标记”，以确定当时到底扣没扣成功。
      */
     @Override
-    public LocalTransactionState checkLocalTransaction(MessageExt msg) {
-        String transactionKey = msg.getKeys(); // 从消息 Key 中拿到流水号
-        System.out.println("🔍 [事务回查] 检查 Key: " + transactionKey);
+    public RocketMQLocalTransactionState checkLocalTransaction(Message msg) {
+        try {
+            String bodyJson = new String((byte[]) msg.getPayload(), StandardCharsets.UTF_8);
+            SeckillOrderMsgDTO msgDTO = JSONUtil.toBean(bodyJson, SeckillOrderMsgDTO.class);
 
-        try (Jedis jedis = jedisPool.getResource()) {
-            // 查账逻辑：如果不确定当时有没有扣成功，就查一下那个“流水 Key”是否存在
-            if (jedis.exists(transactionKey)) {
-                // 流水存在，说明当时 Lua 脚本执行成功了，只是结果没传回 MQ
-                return LocalTransactionState.COMMIT_MESSAGE;
+            // 检查重复购买 Key 是否存在
+            // 这个 Key 是 Lua 脚本中扣减成功后写入的
+            String dupKey = "seckill:order:done:" + msgDTO.getUserId() + ":" + msgDTO.getSkuId();
+            Boolean hasBought = stringRedisTemplate.hasKey(dupKey);
+
+            if (Boolean.TRUE.equals(hasBought)) {
+                log.info("🔍 [事务回查] 订单标记存在，提交消息. orderId={}", msgDTO.getOrderId());
+                return RocketMQLocalTransactionState.COMMIT;
             } else {
-                // 流水不存在，说明当时扣库存失败了(或者根本没执行到)
-                return LocalTransactionState.ROLLBACK_MESSAGE;
+                log.warn("🔍 [事务回查] 订单标记不存在，回滚消息. orderId={}", msgDTO.getOrderId());
+                return RocketMQLocalTransactionState.ROLLBACK;
             }
         } catch (Exception e) {
-            // 如果回查的时候 Redis 还挂着，那就继续返回 UNKNOW，MQ 会稍后继续重试
-            return LocalTransactionState.UNKNOW;
+            log.error(">>> 事务回查异常", e);
+            return RocketMQLocalTransactionState.UNKNOWN;
         }
     }
 }
