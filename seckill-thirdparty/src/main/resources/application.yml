@@ -9,11 +9,11 @@ spring:
   cloud:
     nacos:
       discovery:
-        server-addr: 100.113.176.73:8848
+        server-addr: 10.201.115.99:8848
 
 # 自定义 MinIO 配置
 minio:
-  endpoint: http://100.113.176.73:9000 # MinIO 服务地址
+  endpoint: http://10.201.115.99:9000 # MinIO 服务地址
   accessKey: admin
   secretKey: 12345678       # 你启动 Docker 时设置的密码
   bucketName: seckill

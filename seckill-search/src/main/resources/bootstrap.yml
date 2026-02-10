@@ -8,10 +8,10 @@ spring:
     nacos:
       discovery:
         # 【核心】指向您的 Linux 服务器 Tailscale IP
-        server-addr: 100.113.176.73:8848
+        server-addr: 10.201.115.99:8848
       config:
         # 【核心】指向您的 Linux 服务器 Tailscale IP
-        server-addr: 100.113.176.73:8848
+        server-addr: 10.201.115.99:8848
         file-extension: yaml
         # 开启共享配置，读取 seckill.jwt.secret
         shared-configs:
@@ -21,7 +21,7 @@ spring:
   # Elasticsearch 配置
   elasticsearch:
     # 【核心】指向您的 Linux 服务器 IP (已确认是 ES 8.x)
-    uris: http://100.113.176.73:9200
+    uris: http://10.201.115.99:9200
     connection-timeout: 3s
     socket-timeout: 8s
     # 开发环境关闭了 x-pack，保持注释
@@ -32,13 +32,13 @@ spring:
 app:
   rocketmq:
     # 【核心】指向您的 Linux 服务器 IP
-    namesrv-addr: 100.113.176.73:9876
+    namesrv-addr: 10.201.115.99:9876
     consumer-group: search-consumer-group
     topic: goods-up-topic
 
 # RocketMQ 官方 Starter 配置
 rocketmq:
-  name-server: 100.113.176.73:9876
+  name-server: 10.201.115.99:9876
   # 【新增】必须添加生产者组，否则注入 RocketMQTemplate 会报错
   producer:
     group: search-producer-group

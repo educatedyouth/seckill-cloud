@@ -4,6 +4,7 @@ import com.example.seckill.common.entity.Order;
 import com.example.seckill.common.result.Result;
 import com.example.seckill.common.utils.RedisUtil;
 import com.example.seckill.order.context.TableContext;
+import com.example.seckill.order.feign.GoodsFeignClient;
 import com.example.seckill.order.feign.PayFeignClient;
 import com.example.seckill.order.mapper.OrderMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -37,7 +38,8 @@ public class OrderTimeoutConsumer implements RocketMQListener<String> {
     // 【新增】注入支付 Feign 客户端
     @Autowired
     private PayFeignClient payFeignClient;
-
+    @Autowired
+    private GoodsFeignClient goodsFeignClient; // 用于扣减库存
     @Override
     public void onMessage(String orderIdStr) {
         Long orderId = Long.valueOf(orderIdStr);
@@ -49,6 +51,7 @@ public class OrderTimeoutConsumer implements RocketMQListener<String> {
 
         try {
             Order order = orderMapper.selectById(orderId);
+
             if (order == null) {
                 log.warn(">>> [延时关单] 订单未找到，可能已被物理删除或分表路由错误. OrderId: {}", orderId);
                 return;
@@ -77,6 +80,8 @@ public class OrderTimeoutConsumer implements RocketMQListener<String> {
                 if (isPaidRemote) {
                     // A. 如果第三方说“已支付” -> 修正本地状态
                     log.info(">>> [延时关单] 核实发现订单 {} 实际已支付！正在修正本地状态...", orderId);
+                    goodsFeignClient.reduceStockDB(order.getSkuId(),1);
+                    log.info(">>> 远程扣减库存成功");
                     Order updateOrder = new Order();
                     updateOrder.setId(orderId);
                     updateOrder.setStatus(2); // 2-已支付

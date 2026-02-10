@@ -22,7 +22,7 @@ public class RocketMQConfig {
     // 直接读取 yaml 中的 app.rocketmq.topic
     @Value("${app.rocketmq.topic}")
     private String orderTopic;
-    // 从 application.yml 读取 NameServer 地址 (100.113.176.73:9876)
+    // 从 application.yml 读取 NameServer 地址 (10.201.115.99:9876)
     @Value("${app.rocketmq.namesrv-addr}")
     private String namesrvAddr;
 

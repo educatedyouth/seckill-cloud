@@ -67,12 +67,12 @@ public class SearchApplication {
 
                         // 3. 调用search接口，可GPU可CPU，用来测试GPU速度
                         // GPU测试代码
-                        // SearchParamDTO searchParamDTO = new SearchParamDTO();
-                        // searchParamDTO.setKeyword("手表");
-                        // searchService.searchByGPU(searchParamDTO);
-                        // long end = System.currentTimeMillis();
-                        // System.out.println(String.format("=== 线程-%d 完成, 耗时: %dms ===",
-                        //         threadId, (end - start)));
+                        SearchParamDTO searchParamDTO = new SearchParamDTO();
+                        searchParamDTO.setKeyword("手表");
+                        searchService.searchByGPU(searchParamDTO);
+                        long end = System.currentTimeMillis();
+                        System.out.println(String.format("=== 线程-%d 完成, 耗时: %dms ===",
+                                threadId, (end - start)));
 
                         // CPU测试代码
                         // SearchParamDTO searchParamDTO = new SearchParamDTO();
@@ -83,17 +83,46 @@ public class SearchApplication {
                         //         threadId, (end - start)));
 
                         // LLM测试代码
-                        String userPrompt = "商品标题：苹果耳机"+"\n商品简介：airpods pro 2代，非凡音质";
-                        String formattedPrompt =
-                                        "你是一个电商搜索优化专家。请根据商品标题和简介，扩展生成一行5-10个中文搜索关键词，不要分段，不要编号，关键词之间用逗号分隔，要求包含同义词，功能词，场景词等简短词汇。\n" +
-                                        userPrompt;
-                        CompletableFuture<LlmBatchService.futureRes> future = llmBatchService.asyncChatWordVec(formattedPrompt);
-                        List<String> result = future.get(300, TimeUnit.SECONDS).futureWord; // 设置个业务超时兜底
-                        float[] resultVec = future.get(300, TimeUnit.SECONDS).futureVec;
-                        System.out.println(result + "\n" + resultVec.length);
-                        long end = System.currentTimeMillis();
-                        System.out.println(String.format("=== 线程-%d 完成, 耗时: %dms ===",
-                                threadId, (end - start)));
+                        // String userPrompt = "商品标题：苹果耳机"  + "\n商品简介：顶级音质，蓝牙无线";
+                        // // Qwen2.5 标准模版
+                        // // String formattedPrompt =
+                        // //         "<|im_start|>system\n" +
+                        // //                 "你是一个精准的关键词提取工具。请仅输出提取的关键词，用逗号分隔，不要输出任何其他解释、前缀或后缀。\n" +
+                        // //                 "<|im_end|>\n" +
+                        // //                 "<|im_start|>user\n" +
+                        // //                 "提取以下商品的搜索关键词：\n" +
+                        // //                 userPrompt + "\n" +
+                        // //                 "<|im_end|>\n" +
+                        // //                 "<|im_start|>assistant\n"; // 引导它开始回答，不要加内容
+                        // // 构造 Prompt (ChatML 格式 + One-Shot 示例 + 发散指令)
+                        // String formattedPrompt =
+                        //         "<|im_start|>system\n" +
+                        //                 "你是一个电商搜索优化专家。请根据商品信息生成5-10个搜索关键词。\n" +
+                        //                 "核心要求：\n" +
+                        //                 "1. **发散思维**：不要局限于提取原文，必须扩展同义词、场景词、功能词（例如：'iPhone' -> '苹果手机', '送礼', '拍照'）。\n" +
+                        //                 "2. **格式严格**：仅输出关键词，用英文逗号分隔，严禁输出任何解释、前缀或后缀。\n" +
+                        //                 "<|im_end|>\n" +
+                        //                 // --- 示例 (One-Shot) 开始 ---
+                        //                 "<|im_start|>user\n" +
+                        //                 "商品标题：Nike Air Jordan 1 Low\n" +
+                        //                 "商品简介：经典低帮设计，内置气垫，防滑耐磨大底\n" +
+                        //                 "<|im_end|>\n" +
+                        //                 "<|im_start|>assistant\n" +
+                        //                 "耐克,AJ1,篮球鞋,运动板鞋,低帮,情侣鞋,透气,防滑,潮流穿搭\n" +
+                        //                 "<|im_end|>\n" +
+                        //                 // --- 示例 结束 ---
+                        //                 "<|im_start|>user\n" +
+                        //                 "提取以下商品的搜索关键词：\n" +
+                        //                 userPrompt + "\n" +
+                        //                 "<|im_end|>\n" +
+                        //                 "<|im_start|>assistant\n"; // 引导模型开始输出
+                        // CompletableFuture<LlmBatchService.futureRes> future = llmBatchService.asyncChatWordVec(formattedPrompt);
+                        // List<String> result = future.get(300, TimeUnit.SECONDS).futureWord; // 设置个业务超时兜底
+                        // float[] resultVec = future.get(300, TimeUnit.SECONDS).futureVec;
+                        // System.out.println(result + "\n" + resultVec.length);
+                        // long end = System.currentTimeMillis();
+                        // System.out.println(String.format("=== 线程-%d 完成, 耗时: %dms ===",
+                        //         threadId, (end - start)));
                     } catch (Exception e) {
                         e.printStackTrace();
                     }

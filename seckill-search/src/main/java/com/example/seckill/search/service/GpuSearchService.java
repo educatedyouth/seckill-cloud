@@ -118,7 +118,7 @@ public class GpuSearchService {
 
     // ================== 生命周期与业务逻辑 ==================
 
-    // @PostConstruct
+    @PostConstruct
     public void init() {
         System.out.println(">>> [Service] 初始化 GPU 搜索服务...");
 

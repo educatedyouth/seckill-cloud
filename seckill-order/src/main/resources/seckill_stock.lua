@@ -8,8 +8,12 @@ end
 -- 获取当前库存，并转为数字
 local stock = tonumber(redis.call('get', KEYS[1]))
 
+if(stock == nil)then
+    return -3
+end
+
 -- 如果库存不存在(nil)或者小于等于0，返回 -1 (库存不足)
-if (stock == nil or stock <= 0) then
+if (stock <= 0) then
     return -1
 end
 

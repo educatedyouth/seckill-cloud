@@ -61,7 +61,7 @@ public class SeckillConsumer {
 
             // 设置并发线程数 (保护数据库)
             consumer.setConsumeThreadMin(5);
-            consumer.setConsumeThreadMax(20);
+            consumer.setConsumeThreadMax(100);
 
             consumer.registerMessageListener((MessageListenerConcurrently) (msgs, context) -> {
                 for (MessageExt msg : msgs) {
@@ -100,7 +100,7 @@ public class SeckillConsumer {
                         // -------------------------------------------------------
                         // 【核心路由逻辑】计算分表名：order_tbl_0 ~ order_tbl_3
                         // -------------------------------------------------------
-                        long tableIndex = userId % 4; // 也可以用 orderId % 4，结果是一样的
+                        long tableIndex = orderId % 4; // 也可以用 orderId % 4，结果是一样的
                         String tableName = "order_tbl_" + tableIndex;
                         TableContext.set(tableName); // 【关键】设置 ThreadLocal
                         log.info(">>> 路由到分表: {}", tableName);
@@ -114,7 +114,6 @@ public class SeckillConsumer {
                                 return ConsumeConcurrentlyStatus.CONSUME_SUCCESS;
                             }
 
-                            log.info(">>> (模拟) 远程扣减库存成功");
 
                             // 4. 【本地创建订单】
                             Order order = new Order();

@@ -72,7 +72,7 @@ public class SeckillServiceImpl implements SeckillService {
         Long result = stringRedisTemplate.execute(seckillScript, scriptKeys);
 
         if (result == null) return Result.error("抢购过于火爆，请重试");
-        if (result == -2) return Result.error("您已抢购成功，请勿重复下单");
+        // if (result == -2) return Result.error("您已抢购成功，请勿重复下单");
         if (result == -1) {
             stockMap.put(skuId, false); // 标记本地无货
             return Result.error("商品已售罄");

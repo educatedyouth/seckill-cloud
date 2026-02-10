@@ -131,23 +131,37 @@ public class LlmBatchService {
             if (outputs != null && outputs.length == batch.size()) {
                 for (int i = 0; i < batch.size(); i++) {
                     String rawOutput = outputs[i];
-                    String cleanResult = rawOutput;
-                    // 情况A：完整的 <think>...</think> -> 正则替换
-                    if (rawOutput.contains("<think>") && rawOutput.contains("</think>")) {
-                        cleanResult = rawOutput.replaceAll("<think>[\\s\\S]*?</think>", "");
+                    // 1. 【核心】暴力移除所有 <|...|> 格式的特殊标签 (包括 <|im_end|>, <|endoftext|>)
+                    // 正则解释：<\| 匹配开头，.*? 非贪婪匹配中间内容，\|> 匹配结尾
+                    String cleanResult = rawOutput.replaceAll("<\\|.*?\\|>", "");
+
+                    // 2. 移除可能残留的思考标签
+                    cleanResult = cleanResult.replaceAll("(?s)<think>.*?</think>", "");
+                    cleanResult = cleanResult.replaceAll("</?think>", ""); // 移除剩下的 <think> 或 </think>
+
+                    // 3. 移除常见的后续对话幻觉
+                    String[] stopSignals = new String[]{"Human:", "User:", "Input:", "任务:"};
+                    for (String signal : stopSignals) {
+                        int idx = cleanResult.indexOf(signal);
+                        if (idx != -1) {
+                            cleanResult = cleanResult.substring(0, idx);
+                        }
                     }
-                    // 情况B：只有尾巴 </think> (因为开头被截断或模型没输出开头) -> 截取后半段
-                    else if (rawOutput.contains("</think>")) {
-                        int index = rawOutput.indexOf("</think>");
-                        cleanResult = rawOutput.substring(index + 8); // 8 是 "</think>".length()
-                    }
-                    // 情况C：只有开头 <think> (长度不够被截断) -> 只要前面的，或者提示错误
-                    else if (rawOutput.contains("<think>")) {
-                        cleanResult = ""; // 没想完，通常结果不可用
-                    }
-                    // 标点归一化
-                    cleanResult = cleanResult.replace("\n", ",").replace("，", ",").replace("。", "").replace(" ",",");
-                    cleanResults[i] = cleanResult;
+
+                    // 4. 标点归一化：把换行、空格、中文逗号都变成英文逗号
+                    cleanResult = cleanResult.replaceAll("[\\n\\r\\t\\s，。、]+", ",");
+
+                    // 5. 再次清理可能残留的特殊字符 (比如 <, >, | 等)
+                    cleanResult = cleanResult.replaceAll("[<>|]", "");
+
+                    // 6. 去除首尾逗号
+                    if (cleanResult.startsWith(",")) cleanResult = cleanResult.substring(1);
+                    if (cleanResult.endsWith(",")) cleanResult = cleanResult.substring(0, cleanResult.length() - 1);cleanResults[i] = cleanResult;
+                    // 7. 直接把 im_end 等关键词替换为空，防止残留
+                    cleanResult = cleanResult.replace("im_end", "")
+                            .replace("endoftext", "")
+                            .replace("im_start", "");
+
                     String[] splits = cleanResult.split(",");
                     List<String> keywords = new ArrayList<>();
                     Set<String>set = new HashSet<>();
@@ -214,7 +228,8 @@ public class LlmBatchService {
         System.out.println(">>> [JNI] SeckillLlmService 加载成功");
         // 启动后台线程
         // String modelPath = "D:\\Hzj76\\Downloads\\DeepSeek-R1-Distill-Qwen-7B-Q4_K_M.gguf";
-        String modelPath = "D:\\Hzj76\\Downloads\\Qwen2.5-7B-Instruct-Q4_K_M.gguf";
+        // String modelPath = "D:\\Hzj76\\Downloads\\Qwen2.5-7B-Instruct-Q4_K_M.gguf";
+        String modelPath = "D:\\Hzj76\\Downloads\\qwen2.5-3b-instruct-q4_k_m.gguf";
         boolean success = initModel(modelPath, -1, 4096*2, BATCH_SIZE_THRESHOLD);
 
         if (success) {

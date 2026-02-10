@@ -7,7 +7,7 @@ server:
 spring:
   data:
     redis:
-      host: 100.113.176.73
+      host: 10.201.115.99
       port: 6379
       password: root
   application:
@@ -19,9 +19,9 @@ spring:
       discovery:
         # Nacos 注册中心的地址（IP:PORT 或 域名:PORT）
         # 说明：Gateway 在启用注册发现时会向该地址注册自身并从中发现其他服务。
-        server-addr: 100.113.176.73:8848 # Nacos 地址（示例：IP:端口）
+        server-addr: 10.201.115.99:8848 # Nacos 地址（示例：IP:端口）
       config:
-          server-addr: 100.113.176.73:8848 # 必须是真实IP
+          server-addr: 10.201.115.99:8848 # 必须是真实IP
         # 注意：
         # - 若有多个 Nacos 节点，推荐使用逗号分隔的多个地址或负载均衡的 VIP 域名，如 "host1:8848,host2:8848"。
         # - 确保网关容器/主机能连通该地址（网络、端口、ACL/防火墙）。
@@ -29,7 +29,7 @@ spring:
     sentinel:
         transport:
           # 控制台地址 (Linux IP + 映射端口)
-          dashboard: 100.113.176.73:8858
+          dashboard: 10.201.115.99:8858
           # 客户端 IP (本机 IP，让控制台能回调回来)
           # 如果是本地 IDEA 启动，这里填 localhost 或不填自动获取
           # 如果是服务器部署，这里要填服务器公网/内网 IP
@@ -76,7 +76,7 @@ spring:
             # 说明：希望同时匹配 /seckill/** 和 /order/** 两种路径时，可以使用逗号分隔的多个模板。
             # 注意格式：在 Spring Cloud Gateway 的 YAML 中，Path 断言可以写成 "Path=/seckill/**,/order/**"
             # 原始示例用逗号和空格分隔（也能被某些解析器接受），但推荐不带空格以避免解析差异。
-            - Path=/seckill/**,/order/** # 既然秒杀接口在 /seckill，测试在 /order，都转给它
+            - Path=/seckill/**,/order/**,/benchmark/** # 既然秒杀接口在 /seckill，测试在 /order，都转给它
           # 建议：
           # - 若你期望对 /order/** 使用独立的 filter（如鉴权策略与 /seckill/** 不同），请拆成两个独立路由（不同 id），便于精细控制。
           # - 若要修改转发给下游的路径（例如把 /seckill/xxx 转为 /xxx），使用 RewritePath 或 StripPrefix 过滤器。

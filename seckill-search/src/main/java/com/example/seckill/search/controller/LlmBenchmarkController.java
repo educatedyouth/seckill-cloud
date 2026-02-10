@@ -21,10 +21,6 @@ public class LlmBenchmarkController {
     // 独立的线程池，避免干扰业务
     private final ExecutorService executor = Executors.newFixedThreadPool(200);
 
-    // 预定义的 Prompt 模板 (模拟真实的业务场景)
-    private static final String SYSTEM_PROMPT =
-            "你是一个电商搜索优化专家。请根据商品标题和简介，扩展生成一行5-10个中文搜索关键词，不要分段，不要编号，关键词之间用逗号分隔，要求包含同义词，功能词，场景词等简短词汇。\n";
-
     /**
      * LLM 本地推理压测接口 (Update: 适配真实业务调用链路)
      * URL: http://localhost:8050/llm/test/benchmark?threads=32&count=100
@@ -36,6 +32,37 @@ public class LlmBenchmarkController {
             // 默认传入一个真实的商品信息片段
             @RequestParam(defaultValue = "商品标题：苹果耳机\n商品简介：airpods pro 2代，非凡音质") String userPrompt
     ) {
+        // String formattedPrompt =
+        //         "<|im_start|>system\n" +
+        //                 "你是一个精准的关键词提取工具。请仅输出提取的关键词，用逗号分隔，不要输出任何其他解释、前缀或后缀。\n" +
+        //                 "<|im_end|>\n" +
+        //                 "<|im_start|>user\n" +
+        //                 "提取以下商品的搜索关键词：\n" +
+        //                 userPrompt + "\n" +
+        //                 "<|im_end|>\n" +
+        //                 "<|im_start|>assistant\n"; // 引导它开始回答，不要加内容
+        // 构造 Prompt (ChatML 格式 + One-Shot 示例 + 发散指令)
+        String formattedPrompt =
+                "<|im_start|>system\n" +
+                        "你是一个电商搜索优化专家。请根据商品信息生成5-10个搜索关键词。\n" +
+                        "核心要求：\n" +
+                        "1. **发散思维**：不要局限于提取原文，必须扩展同义词、场景词、功能词（例如：'iPhone' -> '苹果手机', '送礼', '拍照'）。\n" +
+                        "2. **格式严格**：仅输出关键词，用英文逗号分隔，严禁输出任何解释、前缀或后缀。\n" +
+                        "<|im_end|>\n" +
+                        // --- 示例 (One-Shot) 开始 ---
+                        "<|im_start|>user\n" +
+                        "商品标题：Nike Air Jordan 1 Low\n" +
+                        "商品简介：经典低帮设计，内置气垫，防滑耐磨大底\n" +
+                        "<|im_end|>\n" +
+                        "<|im_start|>assistant\n" +
+                        "耐克,AJ1,篮球鞋,运动板鞋,低帮,情侣鞋,透气,防滑,潮流穿搭\n" +
+                        "<|im_end|>\n" +
+                        // --- 示例 结束 ---
+                        "<|im_start|>user\n" +
+                        "提取以下商品的搜索关键词：\n" +
+                        userPrompt + "\n" +
+                        "<|im_end|>\n" +
+                        "<|im_start|>assistant\n"; // 引导模型开始输出
         // 1. 准备任务
         List<Callable<Long>> tasks = new ArrayList<>(count);
 
@@ -44,7 +71,6 @@ public class LlmBenchmarkController {
                 long start = System.nanoTime();
                 try {
                     // --- 步骤 1: 拼接业务 Prompt ---
-                    String formattedPrompt = SYSTEM_PROMPT + userPrompt;
 
                     // --- 步骤 2: 发起异步调用 ---
                     CompletableFuture<LlmBatchService.futureRes> future = llmBatchService.asyncChatWordVec(formattedPrompt);

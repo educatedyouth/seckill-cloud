@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.seckill.common.result.Result;
 import com.example.seckill.goods.dto.SpuSaveDTO;
 import com.example.seckill.common.entity.SpuInfo;
+import com.example.seckill.goods.mapper.SkuInfoMapper;
 import com.example.seckill.goods.service.GoodsService;
 import com.example.seckill.common.vo.GoodsDetailVO;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,7 +18,8 @@ public class GoodsController {
 
     @Autowired
     private GoodsService goodsService;
-
+    @Autowired
+    private SkuInfoMapper skuInfoMapper;
     /**
      * 商品发布接口
      * POST /goods/save
@@ -172,6 +174,20 @@ public class GoodsController {
             }
         } catch (Exception e) {
             return Result.error("回补异常: " + e.getMessage());
+        }
+    }
+    /**
+     * 【新增】内部接口：扣减真实库存
+     * 供订单服务在支付成功后（或延时任务补偿时）调用
+     */
+    @PostMapping("/sku/deduct")
+    public Result<Boolean> deductStock(@RequestParam("skuId") Long skuId,
+                                       @RequestParam("count") Integer count) {
+        int rows = skuInfoMapper.reduceStock(skuId, count);
+        if (rows > 0) {
+            return Result.success(true);
+        } else {
+            return Result.error("库存不足或扣减失败");
         }
     }
 }
