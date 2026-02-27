@@ -13,6 +13,7 @@ import org.apache.rocketmq.client.producer.LocalTransactionState;
 import org.apache.rocketmq.client.producer.TransactionSendResult;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Service;
@@ -29,7 +30,8 @@ public class SeckillServiceImpl implements SeckillService {
 
     @Autowired
     private RocketMQConfig rocketMQConfig;
-
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
     // JVM 本地库存标记 (降级开关)
     private final ConcurrentHashMap<Long, Boolean> stockMap = new ConcurrentHashMap<>();
 
@@ -57,8 +59,8 @@ public class SeckillServiceImpl implements SeckillService {
         msgDTO.setOrderId(orderId);
         // TODO: 实际项目中，价格应从 Redis 缓存获取或通过签名参数传入，此处模拟固定价格
         // msgDTO.setPrice(redisService.getPrice(skuId));
-        msgDTO.setOrderPrice(28999L);
-
+        msgDTO.setOrderPrice(2899L);
+        // System.out.println("success");
         String topic = rocketMQConfig.getOrderTopic();
         Message<String> message = MessageBuilder.withPayload(JSONUtil.toJsonStr(msgDTO)).build();
 
@@ -84,5 +86,6 @@ public class SeckillServiceImpl implements SeckillService {
             log.error(">>> 系统异常", e);
             return Result.error("系统繁忙，请重试");
         }
+        // return Result.success("success");
     }
 }

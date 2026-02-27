@@ -119,7 +119,7 @@ public class OrderTimeoutConsumer implements RocketMQListener<String> {
         stringRedisTemplate.opsForValue().increment(stockKey);
 
         // 2.2 移除“用户已购买”标记 (Allow user to buy again)
-        String dupKey = "seckill:order:done:" + order.getUserId() + ":" + order.getSkuId();
+        String dupKey = "seckill:order:done:" + order.getUserId() + ":" + order.getSkuId() + ":" + order.getId();
         stringRedisTemplate.delete(dupKey);
 
         log.info(">>> [延时关单] Redis 库存回滚成功, Key: {}, DupKey已移除", stockKey);

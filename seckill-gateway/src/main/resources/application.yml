@@ -2,12 +2,12 @@
 server:
   # 应用（网关）对外监听端口
   # 说明：这是 Spring Boot 启动的 HTTP 服务端口，网关统一对外暴露的端口通常在这里配置。
-  port: 8080 # 网关统一对外端口（客户端请求到达此端口，由 Gateway 进行路由转发）
+  port: 8077 # 网关统一对外端口（客户端请求到达此端口，由 Gateway 进行路由转发）
 
 spring:
   data:
     redis:
-      host: 10.201.115.99
+      host: localhost
       port: 6379
       password: root
   application:
@@ -19,9 +19,9 @@ spring:
       discovery:
         # Nacos 注册中心的地址（IP:PORT 或 域名:PORT）
         # 说明：Gateway 在启用注册发现时会向该地址注册自身并从中发现其他服务。
-        server-addr: 10.201.115.99:8848 # Nacos 地址（示例：IP:端口）
+        server-addr: localhost:8848 # Nacos 地址（示例：IP:端口）
       config:
-          server-addr: 10.201.115.99:8848 # 必须是真实IP
+          server-addr: localhost:8848 # 必须是真实IP
         # 注意：
         # - 若有多个 Nacos 节点，推荐使用逗号分隔的多个地址或负载均衡的 VIP 域名，如 "host1:8848,host2:8848"。
         # - 确保网关容器/主机能连通该地址（网络、端口、ACL/防火墙）。
@@ -29,7 +29,7 @@ spring:
     sentinel:
         transport:
           # 控制台地址 (Linux IP + 映射端口)
-          dashboard: 10.201.115.99:8858
+          dashboard: localhost:8858
           # 客户端 IP (本机 IP，让控制台能回调回来)
           # 如果是本地 IDEA 启动，这里填 localhost 或不填自动获取
           # 如果是服务器部署，这里要填服务器公网/内网 IP

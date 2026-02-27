@@ -21,9 +21,9 @@ public class DataSourceConfig {
         DriverManagerDataSource dataSource = new DriverManagerDataSource();
         dataSource.setDriverClassName("com.mysql.cj.jdbc.Driver");
         // 注意：这里硬编码你的配置，确保绝对正确
-        dataSource.setUrl("jdbc:mysql://10.201.115.99:3306/seckill_db?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai");
+        dataSource.setUrl("jdbc:mysql://localhost:3306/seckill_db?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai");
         dataSource.setUsername("root");
-        dataSource.setPassword("root");
+        dataSource.setPassword("Hzj760322");
         System.out.println(">>> 🚀 [强制配置] DataSource 已手动创建连接: " + dataSource.getUrl());
         return dataSource;
     }

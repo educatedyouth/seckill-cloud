@@ -35,7 +35,7 @@ public class PayMockController {
 
             // 2. 模拟支付结果 (80% 概率未支付，方便你测试自动关单逻辑)
             // random.nextInt(10) 生成 0-9。 如果大于 7 (即 8,9) 则算支付成功
-            boolean isPaid = random.nextInt(10) > 2;
+            boolean isPaid = random.nextInt(10) > 7;
 
             log.info(">>> [模拟支付网关] 订单 {} 查询完成, 耗时: {}ms, 状态: {}",
                     orderId, sleepTime, isPaid ? "已支付" : "未支付");

@@ -4,7 +4,7 @@ spring:
   cloud:
     nacos:
       config:
-        server-addr: 10.201.115.99:8848 # Nacos 地址
+        server-addr: localhost:8848 # Nacos 地址
         file-extension: yaml
         group: DEFAULT_GROUP
         # ==========================================

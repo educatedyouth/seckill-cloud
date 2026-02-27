@@ -4,7 +4,7 @@ spring:
   cloud:
     nacos:
       config:
-        server-addr: 10.201.115.99:8848
+        server-addr: localhost:8848
         file-extension: yaml
         # 【核心】加载共享配置
         shared-configs:

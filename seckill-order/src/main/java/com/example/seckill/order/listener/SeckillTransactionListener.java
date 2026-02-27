@@ -50,10 +50,10 @@ public class SeckillTransactionListener implements RocketMQLocalTransactionListe
             SeckillOrderMsgDTO msgDTO = JSONUtil.toBean(bodyJson, SeckillOrderMsgDTO.class);
             Long userId = msgDTO.getUserId();
             Long skuId = msgDTO.getSkuId();
-
+            Long orderId = msgDTO.getOrderId();
             // 2. 准备 Redis Key
             String stockKey = "seckill:stock:" + skuId;
-            String dupKey = "seckill:order:done:" + userId + ":" + skuId;
+            String dupKey = "seckill:order:done:" + userId + ':' + skuId + ':' + orderId;
             List<String> keys = List.of(stockKey, dupKey);
 
             // 3. 执行 Lua 脚本
@@ -61,7 +61,7 @@ public class SeckillTransactionListener implements RocketMQLocalTransactionListe
             Long result = stringRedisTemplate.execute(seckillScript, keys);
 
             if (result != null && result != -1) {
-                log.info("✅ [本地事务] Redis扣减成功, 提交消息. orderId={}", msgDTO.getOrderId());
+                // log.info("✅ [本地事务] Redis扣减成功, 提交消息. orderId={}", msgDTO.getOrderId());
                 return RocketMQLocalTransactionState.COMMIT;
             } else {
                 if (result != null && result == -1) {
@@ -79,7 +79,7 @@ public class SeckillTransactionListener implements RocketMQLocalTransactionListe
             log.error(">>> 执行本地事务异常", e);
             // 发生异常（如 Redis 连不上），为了保险起见，返回 ROLLBACK
             // 或者返回 UNKNOWN 让 MQ 稍后回查（但对于秒杀，fail-fast 更好）
-            return RocketMQLocalTransactionState.ROLLBACK;
+            return RocketMQLocalTransactionState.UNKNOWN;
         }
     }
 
@@ -96,18 +96,18 @@ public class SeckillTransactionListener implements RocketMQLocalTransactionListe
 
             // 检查重复购买 Key 是否存在
             // 这个 Key 是 Lua 脚本中扣减成功后写入的
-            String dupKey = "seckill:order:done:" + msgDTO.getUserId() + ":" + msgDTO.getSkuId();
+            String dupKey = "seckill:order:done:" + msgDTO.getUserId() + ':' + msgDTO.getSkuId() + ':' + msgDTO.getOrderId();
             Boolean hasBought = stringRedisTemplate.hasKey(dupKey);
 
             if (Boolean.TRUE.equals(hasBought)) {
-                log.info("🔍 [事务回查] 订单标记存在，提交消息. orderId={}", msgDTO.getOrderId());
+                // log.info("🔍 [事务回查] 订单标记存在，提交消息. orderId={}", msgDTO.getOrderId());
                 return RocketMQLocalTransactionState.COMMIT;
             } else {
-                log.warn("🔍 [事务回查] 订单标记不存在，回滚消息. orderId={}", msgDTO.getOrderId());
+                // log.warn("🔍 [事务回查] 订单标记不存在，回滚消息. orderId={}", msgDTO.getOrderId());
                 return RocketMQLocalTransactionState.ROLLBACK;
             }
         } catch (Exception e) {
-            log.error(">>> 事务回查异常", e);
+            // log.error(">>> 事务回查异常", e);
             return RocketMQLocalTransactionState.UNKNOWN;
         }
     }

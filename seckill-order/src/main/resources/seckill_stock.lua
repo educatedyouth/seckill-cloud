@@ -1,8 +1,8 @@
 -- 1. 判定用户是否已购买 (幂等性校验)
 -- 如果 Key 存在，说明已经买过了，直接返回 -2 (重复购买)
-if (redis.call('exists', KEYS[2]) == 1) then
-    return -2
-end
+--if (redis.call('exists', KEYS[2]) == 1) then
+--    return -2
+--end
 
 -- 2. 判定库存是否充足
 -- 获取当前库存，并转为数字

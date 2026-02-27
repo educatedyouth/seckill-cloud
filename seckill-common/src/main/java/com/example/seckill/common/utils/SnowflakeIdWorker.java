@@ -114,20 +114,41 @@ public class SnowflakeIdWorker {
      * 实现：将 UserId 的最后 2 bit 强行覆盖到 Sequence 的最后 2 bit
      * 前提：分片数为 4 (2的2次方)
      */
+    /**
+     * 【已修复】生成带有用户基因的 ID
+     * 解决重复问题：sequence 自增步长改为 4，预留低位空间
+     */
     public synchronized long nextId(Long userId) {
-        // 1. 生成原始 ID
-        long rawId = nextId();
+        long timestamp = timeGen();
 
-        // 2. 嵌入基因
-        // 分表数 4 = 100(binary)，掩码是 3 (11 binary)
-        // 我们需要把 rawId 的最后 2 位变成 userId 的最后 2 位
+        // 1. 时钟回拨检查
+        if (timestamp < lastTimestamp) {
+            throw new RuntimeException(String.format("Clock moved backwards. Refusing to generate id for %d milliseconds", lastTimestamp - timestamp));
+        }
 
-        long gene = userId % 4;
+        // 2. 序列号生成逻辑 (核心修改点)
+        if (lastTimestamp == timestamp) {
+            // 【关键】步长改为 4！(二进制 100)，保证最后 2 位永远是 00
+            // 这样 0, 4, 8, 12... 对应的二进制结尾都是 00
+            sequence = (sequence + 4) & sequenceMask;
 
-        // 先把 rawId 最后2位清零，然后或上 gene
-        long geneId = (rawId & ~3L) | (gene & 3L);
+            // 溢出处理 (因为步长是4，可能还没到0就溢出了，比如 4092 + 4 = 4096 -> 0)
+            if (sequence == 0) {
+                timestamp = tilNextMillis(lastTimestamp);
+            }
+        } else {
+            sequence = 0L;
+        }
 
-        return geneId;
+        lastTimestamp = timestamp;
+
+        // 3. 组装 ID
+        // 注意：sequence 现在的结尾肯定是 00，所以直接与 (userId % 4) 做或运算即可
+        return ((timestamp - twepoch) << timestampLeftShift)
+                | (datacenterId << datacenterIdShift)
+                | (workerId << workerIdShift)
+                | sequence  // 这一步生成的 ID，最后2位一定是 00
+                | (userId % 4); // 填入最后 2 位 (00 | 01 = 01)
     }
 
     /**

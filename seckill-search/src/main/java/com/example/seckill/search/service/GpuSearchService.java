@@ -35,7 +35,7 @@ public class GpuSearchService {
     public static final int DIM = 1024;
     // 模拟数据倍增系数：如果 DB 只有 10 条，乘以 100000 就是 100万条
     // 生产中用1
-    private static final int DATA_MULTIPLIER = 100_0000;
+    private static final int DATA_MULTIPLIER = 1;
     public static final Map<Long, GoodsDoc> LOCAL_DATA_CACHE = new ConcurrentHashMap<>(MAX_CAPACITY);
 
     // 定时任务调度器 (单线程即可)

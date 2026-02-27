@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class SeckillBenchmarkController {
 
     // 默认目标地址 (假设服务跑在 8080，请根据实际情况修改)POST http://localhost:8030/seckill/do_seckill
-    private static final String TARGET_URL = "http://localhost:8080/seckill/do_seckill";
+    private static final String TARGET_URL = "http://localhost:8077/seckill/do_seckill";
 
     // HTTP 客户端 (复用连接)
     private final HttpClient httpClient = HttpClient.newBuilder()
@@ -60,7 +60,7 @@ public class SeckillBenchmarkController {
 
         // 3. 生成虚拟 Token (如果你的拦截器需要校验，这里要生成符合格式的 Token)
         // 简单压测可以直接在拦截器放行 benchmark 请求，或者在这里生成 JWT
-        String mockTokenPrefix = "Bearer eyJhbGciOiJIUzI1NiJ9.eyJ1c2VySWQiOjEsInN1YiI6IjEiLCJpYXQiOjE3NzA2OTY5MDIsImV4cCI6MTc3MDc4MzMwMn0.CmmdukgFhsK7yG9-oC2IhEi4iKe58o9zxFowo1RAUTk";
+        String mockTokenPrefix = "Bearer eyJhbGciOiJIUzI1NiJ9.eyJ1c2VySWQiOjEsInN1YiI6IjEiLCJpYXQiOjE3NzA5NzEzNTgsImV4cCI6MTc3MTA1Nzc1OH0.yvAaeP3Qk_jk2ftThLIYqMpJwbS7gVVk1h4dXLuTWDM";
 
         long startTime = System.currentTimeMillis();
 

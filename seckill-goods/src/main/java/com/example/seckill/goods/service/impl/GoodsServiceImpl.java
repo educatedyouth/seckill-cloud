@@ -484,25 +484,34 @@ public class GoodsServiceImpl extends ServiceImpl<SpuInfoMapper, SpuInfo> implem
             return false;
         }
 
-        // 3. 【核心修改】库存转移：写入 Redis 并清空数据库库存
         // Key 格式必须与 Lua 脚本和 Order 服务保持绝对一致
         String key = "seckill:stock:" + skuId;
 
-        // 3.1 写入 Redis (设置过期时间 24小时)
-        redisUtil.set(key, String.valueOf(dbStock), 86400);
-
-        // 3.2 扣减数据库库存 (逻辑上的"锁定"到 Redis)
+        // 3. 先扣减数据库库存 (逻辑上的"锁定"到 Redis)
         // 这里直接设为 0，代表全部库存都托管给了 Redis
         skuInfo.setStock(0);
         int rows = skuInfoMapper.updateById(skuInfo);
 
-        if (rows > 0) {
-            log.info(">>> 商品 {} 库存预热完成。DB库存已清零，Redis Key: {}， 数量: {}", skuId, key, dbStock);
-            return true;
-        } else {
-            // 极端情况：更新失败，抛出异常回滚 Redis 操作
+        if (rows <= 0) {
+            // 极端情况：更新失败，抛出异常回滚，此时还没写 Redis，绝对安全
             throw new RuntimeException("预热失败：数据库扣减异常");
         }
+
+        // 4. 【核心修复】注册事务同步，只有当 DB 事务绝对提交成功后，才向 Redis 写入库存
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                try {
+                    // 事务提交后写入 Redis (设置过期时间 24小时)
+                    redisUtil.set(key, String.valueOf(dbStock), 86400);
+                    log.info(">>> [事务提交后] 商品 {} 库存预热完成。DB库存已清零，Redis Key: {}， 数量: {}", skuId, key, dbStock);
+                } catch (Exception e) {
+                    log.error(">>> [致命异常] 商品 {} 预热写入 Redis 失败，库存已从 DB 扣除但未进入缓存，需人工补偿！数量: {}", skuId, dbStock, e);
+                }
+            }
+        });
+
+        return true;
     }
 
     @Override

@@ -4,12 +4,12 @@ spring:
   cloud:
     nacos:
       # 【核心】在引导阶段就告诉它 Nacos 在哪
-      server-addr: 10.201.115.99:8848
+      server-addr: localhost:8848
       config:
-        server-addr: 10.201.115.99:8848
+        server-addr: localhost:8848
         file-extension: yaml
         shared-configs:
             - data-id: seckill-common.yaml  # 必须要读取这个共享文件
               refresh: true                 # 允许动态刷新
       discovery:
-        server-addr: 10.201.115.99:8848
+        server-addr: localhost:8848
